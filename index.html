@@ -6,189 +6,247 @@
 <title>High Noon Saloon</title>
 <style>
   html,body{margin:0;height:100%;background:#1a0f08;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  canvas{max-width:100vw;max-height:100vh;aspect-ratio:16/9;cursor:none;touch-action:none;image-rendering:auto}
+  canvas{max-width:100vw;max-height:100vh;aspect-ratio:16/9;cursor:none;touch-action:none}
 </style>
 </head>
 <body>
 <canvas id="game" width="960" height="540"></canvas>
 <script>
-// ============ SCENE DATA (edit this to make new levels) ============
-// Spots = where figures can pop up. Later these become hit zones over video.
+// ===================== LEVEL DATA (edit to make new levels) =====================
+// Spots = where figures pop up. In Phase 3 these become hit zones over video.
 const SPOTS = {
-  winL:   { x: 235, y: 165, w: 80, h: 100, cover: 'window' },
-  winR:   { x: 645, y: 165, w: 80, h: 100, cover: 'window' },
-  door:   { x: 440, y: 245, w: 80, h: 160, cover: 'door' },
-  roof:   { x: 450, y: 40,  w: 70, h: 90,  cover: 'roof' },
-  barrel: { x: 90,  y: 300, w: 80, h: 110, cover: 'barrel' },
-  trough: { x: 780, y: 300, w: 80, h: 110, cover: 'trough' },
+  winL:   { x: 235, y: 165, w: 80,  h: 100, cover: 'window' },
+  winR:   { x: 645, y: 165, w: 80,  h: 100, cover: 'window' },
+  door:   { x: 440, y: 245, w: 80,  h: 160, cover: 'door' },
+  roof:   { x: 450, y: 40,  w: 70,  h: 90,  cover: 'roof' },
+  barrel: { x: 90,  y: 300, w: 80,  h: 110, cover: 'barrel' },
+  trough: { x: 780, y: 300, w: 80,  h: 110, cover: 'trough' },
+  street: { x: 420, y: 250, w: 120, h: 230, cover: 'none', scale: 2 }, // showdown
 };
-// t = seconds into the round, window = seconds before an outlaw fires
-const SCENE = [
-  { t: 1.5,  spot: 'winL',   type: 'outlaw',    window: 1.8 },
-  { t: 3.5,  spot: 'barrel', type: 'outlaw',    window: 1.6 },
-  { t: 5.0,  spot: 'door',   type: 'bystander', window: 1.8 },
-  { t: 6.5,  spot: 'trough', type: 'outlaw',    window: 1.4 },
-  { t: 7.2,  spot: 'winR',   type: 'outlaw',    window: 1.4 },
-  { t: 9.0,  spot: 'roof',   type: 'outlaw',    window: 1.2 },
-  { t: 10.5, spot: 'winL',   type: 'bystander', window: 1.6 },
-  { t: 11.0, spot: 'door',   type: 'outlaw',    window: 1.1 },
-  { t: 13.0, spot: 'barrel', type: 'bystander', window: 1.5 },
-  { t: 13.4, spot: 'trough', type: 'outlaw',    window: 1.0 },
-  { t: 15.0, spot: 'winR',   type: 'outlaw',    window: 0.9 },
-  { t: 15.2, spot: 'winL',   type: 'outlaw',    window: 0.9 },
+// Each wave: t = seconds into wave, window = seconds before outlaw fires (scaled by difficulty)
+const WAVES = [
+  { name: 'Wave 1: Rough Welcome', events: [
+    { t: 1.0, spot: 'winL',   type: 'outlaw',    window: 1.9 },
+    { t: 3.0, spot: 'barrel', type: 'outlaw',    window: 1.7 },
+    { t: 4.5, spot: 'door',   type: 'bystander', window: 1.8 },
+    { t: 6.0, spot: 'trough', type: 'outlaw',    window: 1.5 },
+    { t: 7.0, spot: 'winR',   type: 'outlaw',    window: 1.5 },
+  ]},
+  { name: 'Wave 2: Trouble Upstairs', events: [
+    { t: 1.0, spot: 'roof',   type: 'outlaw',    window: 1.3 },
+    { t: 2.5, spot: 'winL',   type: 'bystander', window: 1.6 },
+    { t: 3.0, spot: 'winR',   type: 'outlaw',    window: 1.3 },
+    { t: 4.5, spot: 'door',   type: 'outlaw',    window: 1.2 },
+    { t: 6.0, spot: 'barrel', type: 'bystander', window: 1.5 },
+    { t: 6.3, spot: 'trough', type: 'outlaw',    window: 1.1 },
+  ]},
+  { name: 'Wave 3: The Whole Gang', events: [
+    { t: 1.0, spot: 'winL',   type: 'outlaw',    window: 1.1 },
+    { t: 1.2, spot: 'winR',   type: 'outlaw',    window: 1.1 },
+    { t: 2.8, spot: 'door',   type: 'bystander', window: 1.4 },
+    { t: 3.2, spot: 'roof',   type: 'outlaw',    window: 1.0 },
+    { t: 4.6, spot: 'barrel', type: 'outlaw',    window: 1.0 },
+    { t: 4.8, spot: 'trough', type: 'outlaw',    window: 1.0 },
+    { t: 6.5, spot: 'door',   type: 'outlaw',    window: 0.9 },
+  ]},
 ];
-const QUIPS_SHOT = [
-  "Doc: \"Son, you're supposed to shoot FIRST.\"",
-  "Doc: \"I'll patch you up, but I'm billin' ya.\"",
-  "Doc: \"That's the third hole this week. In you.\"",
-];
-const QUIPS_BYSTANDER = [
-  "Doc: \"That was the piano player. Now who plays?\"",
-  "Doc: \"Shoot the ones with GUNS, stranger.\"",
-  "Doc: \"The sheriff's gonna want a word.\"",
-];
+const DIFFICULTY = {
+  deputy:     { name: 'Deputy',     mult: 1.35, lives: 5, draw: 0.9 },
+  gunslinger: { name: 'Gunslinger', mult: 0.8,  lives: 3, draw: 0.55 },
+};
+const QUIPS = {
+  shot:      ["Doc: \"Son, you're supposed to shoot FIRST.\"", "Doc: \"I'll patch you up, but I'm billin' ya.\"", "Doc: \"That's the third hole this week. In you.\""],
+  bystander: ["Doc: \"That was the piano player. Now who plays?\"", "Doc: \"Shoot the ones with GUNS, stranger.\"", "Doc: \"The sheriff's gonna want a word.\""],
+  early:     ["Doc: \"You draw before 'draw,' you get buried.\"", "Doc: \"Patience, cowboy. PATIENCE.\""],
+  duel:      ["Doc: \"He was faster. Shocking, I know.\"", "Doc: \"Next time, try pulling the trigger.\""],
+};
 
-// ============ ENGINE ============
+// ===================== ENGINE STATE =====================
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const W = 960, H = 540;
-let state = 'title', time = 0, nextEvent = 0, actives = [], lives = 3, ammo = 6;
-let score = 0, shots = 0, hits = 0, hurtTimer = 0, quip = '', flash = 0, muzzle = 0;
-let mouse = { x: W / 2, y: H / 2 }, effects = [];
+let state = 'title', diff = DIFFICULTY.deputy, waveIdx = 0, inDuel = false;
+let time = 0, nextEvent = 0, actives = [], lives = 3, ammo = 6, score = 0, waveStartScore = 0;
+let shots = 0, hits = 0, timer = 0, quip = '', banner = '';
+let flash = 0, muzzle = 0, shake = 0, mouse = { x: W / 2, y: H / 2 }, effects = [];
+let duelT = 0, drawAt = 0, boss = null;
+let best = +(localStorage.getItem('hns_best') || 0);
+const BTN = { deputy: { x: 250, y: 330, w: 200, h: 60 }, gunslinger: { x: 510, y: 330, w: 200, h: 60 } };
 
-// ---- Sound (Web Audio, no files needed) ----
+// ===================== SOUND (Web Audio, no files) =====================
 let ac = null;
 function audio() { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); }
-function noise(dur, vol) {
+function noise(dur, vol, lp) {
   if (!ac) return;
   const b = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate), d = b.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
-  const s = ac.createBufferSource(), g = ac.createGain();
-  g.gain.value = vol; s.buffer = b; s.connect(g).connect(ac.destination); s.start();
+  const s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
+  f.type = 'lowpass'; f.frequency.value = lp || 4000; g.gain.value = vol;
+  s.buffer = b; s.connect(f).connect(g).connect(ac.destination); s.start();
 }
-function blip(freq, dur) {
+function tone(type, f1, f2, dur, vol) {
   if (!ac) return;
-  const o = ac.createOscillator(), g = ac.createGain();
-  o.type = 'square'; o.frequency.value = freq; g.gain.value = 0.08;
-  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
-  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(t + dur);
 }
+const sfx = {
+  gun:      () => { noise(0.35, 0.7, 2500); tone('sine', 120, 40, 0.2, 0.5); },
+  ricochet: () => tone('sine', 2200 + Math.random() * 800, 500, 0.35, 0.12),
+  hit:      () => tone('triangle', 180, 60, 0.15, 0.4),
+  empty:    () => tone('square', 160, 140, 0.05, 0.08),
+  reload:   () => { for (let i = 0; i < 3; i++) setTimeout(() => tone('square', 900, 700, 0.04, 0.06), i * 70); },
+  hurt:     () => { noise(0.5, 0.9, 1200); tone('sawtooth', 200, 50, 0.5, 0.2); },
+  bell:     () => { tone('sine', 880, 870, 1.2, 0.3); tone('sine', 1320, 1300, 0.8, 0.12); },
+  win:      () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone('triangle', f, f, 0.3, 0.2), i * 150)),
+};
 
-// ---- Game flow ----
-function startGame() {
-  state = 'play'; time = 0; nextEvent = 0; actives = []; lives = 3; ammo = 6;
-  score = 0; shots = 0; hits = 0; effects = [];
+// ===================== GAME FLOW =====================
+function startGame(d) {
+  diff = DIFFICULTY[d]; lives = diff.lives; score = 0; shots = 0; hits = 0; effects = [];
+  startWave(0);
 }
-function reload() { if (ammo < 6) { ammo = 6; blip(600, 0.05); setTimeout(() => blip(900, 0.05), 90); } }
-function hurt(byBystander) {
-  lives--; flash = 1; actives = []; noise(0.4, 0.9);
-  const list = byBystander ? QUIPS_BYSTANDER : QUIPS_SHOT;
-  quip = list[Math.floor(Math.random() * list.length)];
-  state = lives <= 0 ? 'over' : 'hurt'; hurtTimer = 2.2;
+function startWave(i) {
+  waveIdx = i; inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; waveStartScore = score;
+  if (i >= WAVES.length) return startDuel();
+  banner = WAVES[i].name; state = 'intro'; timer = 1.6;
 }
+function startDuel() {
+  inDuel = true; actives = []; ammo = 6; waveStartScore = score;
+  banner = 'SHOWDOWN'; state = 'intro'; timer = 1.6;
+  boss = { spot: 'street', type: 'outlaw', age: 0, window: 99, rise: 1, dead: false, deadTime: 0, boss: true };
+}
+function reload() { if (ammo < 6) { ammo = 6; sfx.reload(); } }
+function hurt(kind) {
+  lives--; flash = 1; shake = 0.4; actives = []; sfx.hurt();
+  const list = QUIPS[kind]; quip = list[Math.floor(Math.random() * list.length)];
+  score = waveStartScore;              // no farming points by dying mid-wave
+  if (lives <= 0) { state = 'over'; saveBest(); } else { state = 'hurt'; timer = 2.4; }
+}
+function saveBest() { if (score > best) { best = score; localStorage.setItem('hns_best', best); } }
+function inBox(x, y, s) { return x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h; }
 
 function shoot(x, y) {
-  if (ammo <= 0) { blip(150, 0.06); return; }
-  ammo--; shots++; muzzle = 0.08; noise(0.25, 0.6);
-  effects.push({ x, y, life: 0.3 });
-  // check top-most figure first
+  if (ammo <= 0) { sfx.empty(); return; }
+  ammo--; shots++; muzzle = 0.07; shake = Math.max(shake, 0.08); sfx.gun();
+
+  if (inDuel) {
+    if (state === 'duelWait') return hurt('early');
+    if (state === 'duelDraw' && inBox(x, y, SPOTS.street)) {
+      hits++; boss.dead = true; sfx.hit();
+      const bonus = Math.round(500 * Math.max(0, 1 - duelT / diff.draw));
+      score += 500 + bonus; effects.push({ x: 480, y: 240, life: 1, text: '+' + (500 + bonus) });
+      state = 'duelWon'; timer = 1.8; return;
+    }
+    miss(x, y); return;
+  }
+
   for (let i = actives.length - 1; i >= 0; i--) {
     const a = actives[i], s = SPOTS[a.spot];
-    if (a.dead || a.rise < 0.6) continue;
-    if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) {
-      a.dead = true; a.deadTime = 0;
-      if (a.type === 'outlaw') {
-        hits++;
-        const speedBonus = Math.round(100 * Math.max(0, 1 - a.age / a.window));
-        score += 100 + speedBonus;
-        effects.push({ x: s.x + s.w / 2, y: s.y, life: 0.8, text: '+' + (100 + speedBonus) });
-      } else { hurt(true); }
-      return;
-    }
+    if (a.dead || a.rise < 0.6 || !inBox(x, y, s)) continue;
+    a.dead = true; a.deadTime = 0; sfx.hit();
+    if (a.type === 'outlaw') {
+      hits++;
+      const bonus = Math.round(100 * Math.max(0, 1 - a.age / a.window));
+      score += 100 + bonus;
+      effects.push({ x: s.x + s.w / 2, y: s.y, life: 0.8, text: '+' + (100 + bonus) });
+    } else hurt('bystander');
+    return;
   }
+  miss(x, y);
+}
+function miss(x, y) {
+  effects.push({ x, y, life: 0.3, hole: true });
+  for (let i = 0; i < 5; i++) effects.push({ x, y, life: 0.5, dust: true, vx: (Math.random() - 0.5) * 80, vy: -Math.random() * 60 });
+  if (Math.random() < 0.5) sfx.ricochet();
 }
 
 function update(dt) {
-  flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt);
-  effects.forEach(e => e.life -= dt); effects = effects.filter(e => e.life > 0);
-  if (state === 'hurt') { hurtTimer -= dt; if (hurtTimer <= 0) state = 'play'; return; }
+  flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt); shake = Math.max(0, shake - dt);
+  effects.forEach(e => { e.life -= dt; if (e.dust) { e.x += e.vx * dt; e.y += e.vy * dt; } });
+  effects = effects.filter(e => e.life > 0);
+  if (boss && boss.dead) boss.deadTime += dt;
+
+  if (state === 'intro') {
+    timer -= dt;
+    if (timer <= 0) {
+      if (inDuel) { state = 'duelWait'; duelT = 0; drawAt = 1.5 + Math.random() * 2.5; boss.dead = false; boss.deadTime = 0; }
+      else state = 'play';
+    }
+    return;
+  }
+  if (state === 'hurt') { timer -= dt; if (timer <= 0) inDuel ? startDuel() : startWave(waveIdx); return; }
+  if (state === 'duelWait') { duelT += dt; if (duelT >= drawAt) { state = 'duelDraw'; duelT = 0; sfx.bell(); } return; }
+  if (state === 'duelDraw') { duelT += dt; boss.age = duelT; boss.window = diff.draw; if (duelT >= diff.draw) hurt('duel'); return; }
+  if (state === 'duelWon') { timer -= dt; if (timer <= 0) { state = 'win'; saveBest(); sfx.win(); } return; }
   if (state !== 'play') return;
+
   time += dt;
-  while (nextEvent < SCENE.length && SCENE[nextEvent].t <= time) {
-    const e = SCENE[nextEvent++];
-    actives.push({ ...e, age: 0, rise: 0, dead: false, deadTime: 0 });
+  const evs = WAVES[waveIdx].events;
+  while (nextEvent < evs.length && evs[nextEvent].t <= time) {
+    const e = evs[nextEvent++];
+    actives.push({ ...e, window: e.window * diff.mult, age: 0, rise: 0, dead: false, deadTime: 0 });
   }
   for (const a of actives) {
     a.rise = Math.min(1, a.rise + dt * 6);
     if (a.dead) { a.deadTime += dt; continue; }
     a.age += dt;
     if (a.age >= a.window) {
-      if (a.type === 'outlaw') { hurt(false); return; }
-      a.gone = true; // bystander walks off safely
+      if (a.type === 'outlaw') { hurt('shot'); return; }
+      a.gone = true; // bystander leaves safely
     }
   }
   actives = actives.filter(a => !a.gone && !(a.dead && a.deadTime > 0.6));
-  if (nextEvent >= SCENE.length && actives.length === 0) state = 'win';
+  // Wave is cleared ONLY if every event spawned and nobody is left (getting hit restarts the wave)
+  if (nextEvent >= evs.length && actives.length === 0) startWave(waveIdx + 1);
 }
 
-// ============ DRAWING ============
+// ===================== DRAWING =====================
 function drawBackdrop() {
-  let g = ctx.createLinearGradient(0, 0, 0, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#f6b26b'); g.addColorStop(0.55, '#ffd9a0'); g.addColorStop(0.56, '#c79a5b'); g.addColorStop(1, '#9c6b3a');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#ffe9b8'; ctx.beginPath(); ctx.arc(820, 70, 40, 0, 7); ctx.fill(); // sun
-  // saloon facade
+  ctx.fillStyle = '#ffe9b8'; ctx.beginPath(); ctx.arc(820, 70, 40, 0, 7); ctx.fill();
   ctx.fillStyle = '#7a4a26'; ctx.fillRect(180, 120, 600, 290);
   ctx.fillStyle = '#6a3d1e'; ctx.fillRect(400, 60, 160, 70);
   ctx.strokeStyle = '#5a3215'; ctx.lineWidth = 2;
   for (let y = 130; y < 410; y += 18) { ctx.beginPath(); ctx.moveTo(180, y); ctx.lineTo(780, y); ctx.stroke(); }
-  ctx.fillStyle = '#3b2210'; ctx.font = 'bold 34px Georgia'; ctx.textAlign = 'center';
-  ctx.fillText('SALOON', 480, 105);
-  // dark openings behind figures
+  ctx.fillStyle = '#3b2210'; ctx.font = 'bold 34px Georgia'; ctx.textAlign = 'center'; ctx.fillText('SALOON', 480, 105);
   ctx.fillStyle = '#1e120a';
   for (const k of ['winL', 'winR', 'door']) { const s = SPOTS[k]; ctx.fillRect(s.x, s.y, s.w, s.h); }
-  // porch
   ctx.fillStyle = '#5a3215'; ctx.fillRect(160, 405, 640, 14);
 }
 function drawCovers() {
   for (const k in SPOTS) {
-    const s = SPOTS[k];
-    ctx.strokeStyle = '#3b2210'; ctx.lineWidth = 6;
+    const s = SPOTS[k]; ctx.strokeStyle = '#3b2210'; ctx.lineWidth = 6;
     if (s.cover === 'window') { ctx.strokeRect(s.x, s.y, s.w, s.h); ctx.fillStyle = '#3b2210'; ctx.fillRect(s.x - 8, s.y + s.h, s.w + 16, 10); }
-    if (s.cover === 'door') { ctx.strokeRect(s.x, s.y, s.w, s.h); }
+    if (s.cover === 'door') ctx.strokeRect(s.x, s.y, s.w, s.h);
     if (s.cover === 'roof') { ctx.fillStyle = '#6a3d1e'; ctx.fillRect(s.x - 50, s.y + 60, s.w + 100, 30); }
-    if (s.cover === 'barrel') {
-      ctx.fillStyle = '#8b5a2b'; ctx.fillRect(s.x, s.y + 55, s.w, 70);
-      ctx.fillStyle = '#444'; ctx.fillRect(s.x, s.y + 65, s.w, 6); ctx.fillRect(s.x, s.y + 105, s.w, 6);
-    }
-    if (s.cover === 'trough') {
-      ctx.fillStyle = '#6b4423'; ctx.fillRect(s.x - 20, s.y + 60, s.w + 40, 60);
-      ctx.fillStyle = '#5b8fb0'; ctx.fillRect(s.x - 14, s.y + 62, s.w + 28, 8);
-    }
+    if (s.cover === 'barrel') { ctx.fillStyle = '#8b5a2b'; ctx.fillRect(s.x, s.y + 55, s.w, 70); ctx.fillStyle = '#444'; ctx.fillRect(s.x, s.y + 65, s.w, 6); ctx.fillRect(s.x, s.y + 105, s.w, 6); }
+    if (s.cover === 'trough') { ctx.fillStyle = '#6b4423'; ctx.fillRect(s.x - 20, s.y + 60, s.w + 40, 60); ctx.fillStyle = '#5b8fb0'; ctx.fillRect(s.x - 14, s.y + 62, s.w + 28, 8); }
   }
 }
 function drawPerson(a) {
-  const s = SPOTS[a.spot], cx = s.x + s.w / 2;
+  const s = SPOTS[a.spot], sc = s.scale || 1, cx = s.x + s.w / 2;
   ctx.save();
-  ctx.beginPath(); ctx.rect(s.x - 20, s.y - 30, s.w + 40, s.h + 30); ctx.clip();
-  const drop = (1 - a.rise) * s.h + (a.dead ? a.deadTime * 200 : 0);
-  ctx.translate(cx, s.y + 20 + drop);
-  if (a.dead) ctx.rotate(Math.min(a.deadTime * 3, 1.2));
+  if (!a.boss) { ctx.beginPath(); ctx.rect(s.x - 20, s.y - 30, s.w + 40, s.h + 30); ctx.clip(); }
+  const drop = (1 - a.rise) * s.h + (a.dead && !a.boss ? a.deadTime * 200 : 0);
+  ctx.translate(cx, s.y + 22 * sc + drop); ctx.scale(sc, sc);
+  if (a.dead) ctx.rotate(Math.min(a.deadTime * 3, a.boss ? 1.5 : 1.2));
   const outlaw = a.type === 'outlaw';
-  ctx.fillStyle = outlaw ? '#222' : '#4a7ab8'; ctx.fillRect(-18, 18, 36, 70);     // body
-  ctx.fillStyle = '#e8b98a'; ctx.beginPath(); ctx.arc(0, 8, 13, 0, 7); ctx.fill(); // head
-  ctx.fillStyle = outlaw ? '#111' : '#f2f2f2';                                    // hat
-  ctx.fillRect(-22, -8, 44, 6); ctx.fillRect(-12, -22, 24, 16);
+  ctx.fillStyle = outlaw ? '#222' : '#4a7ab8'; ctx.fillRect(-18, 18, 36, 70);
+  ctx.fillStyle = '#e8b98a'; ctx.beginPath(); ctx.arc(0, 8, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = outlaw ? '#111' : '#f2f2f2'; ctx.fillRect(-22, -8, 44, 6); ctx.fillRect(-12, -22, 24, 16);
   if (outlaw) {
-    ctx.fillStyle = '#b22'; ctx.fillRect(-13, 10, 26, 9);                         // bandana
-    const warn = !a.dead && a.age > a.window * 0.6;
-    ctx.fillStyle = '#555'; ctx.fillRect(18, 30, 24, 7);                         // gun arm
+    ctx.fillStyle = '#b22'; ctx.fillRect(-13, 10, 26, 9);
+    const drawn = !a.boss || state === 'duelDraw';
+    ctx.fillStyle = '#555';
+    if (drawn) ctx.fillRect(18, 30, 24, 7); else ctx.fillRect(18, 50, 7, 22); // holstered vs aimed
+    const warn = drawn && !a.dead && a.age > a.window * 0.6;
     if (warn && Math.floor(a.age * 12) % 2) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(44, 33, 7, 0, 7); ctx.fill(); }
-  } else {
-    ctx.fillStyle = '#e8b98a'; ctx.fillRect(-28, -2, 8, 24); ctx.fillRect(20, -2, 8, 24); // hands up
-  }
+  } else { ctx.fillStyle = '#e8b98a'; ctx.fillRect(-28, -2, 8, 24); ctx.fillRect(20, -2, 8, 24); }
   ctx.restore();
-  // fuse bar over live outlaws
-  if (outlaw && !a.dead && a.rise >= 1) {
+  if (outlaw && !a.boss && !a.dead && a.rise >= 1) {
     const p = 1 - a.age / a.window;
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(s.x, s.y - 14, s.w, 6);
     ctx.fillStyle = p > 0.4 ? '#ffcc33' : '#ff3333'; ctx.fillRect(s.x, s.y - 14, s.w * p, 6);
@@ -198,58 +256,86 @@ function drawHUD() {
   ctx.textAlign = 'left'; ctx.font = 'bold 22px Georgia'; ctx.fillStyle = '#fff';
   ctx.fillText('SCORE ' + score, 20, 34);
   ctx.fillText('LIVES ' + '♥'.repeat(Math.max(0, lives)), 20, 64);
-  for (let i = 0; i < 6; i++) {                                                   // bullets (tap to reload)
-    ctx.fillStyle = i < ammo ? '#d4a017' : 'rgba(255,255,255,.2)';
-    ctx.fillRect(W - 40 - i * 22, H - 60, 12, 36);
-  }
+  ctx.font = '14px Georgia'; ctx.fillText(diff.name + (inDuel ? ' · Showdown' : ' · Wave ' + (waveIdx + 1) + '/' + WAVES.length), 20, 86);
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = i < ammo ? '#d4a017' : 'rgba(255,255,255,.2)'; ctx.fillRect(W - 40 - i * 22, H - 60, 12, 36); }
   ctx.font = '14px Georgia'; ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
   ctx.fillText(ammo === 0 ? 'RELOAD! (R / right-click / tap bullets)' : 'R to reload', W - 20, H - 70);
 }
-function centerText(lines, y0) {
-  ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 0, W, H);
+function overlay(lines, y0, alpha) {
+  ctx.fillStyle = `rgba(0,0,0,${alpha ?? 0.65})`; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.fillStyle = '#ffe9b8';
   lines.forEach((l, i) => { ctx.font = (i === 0 ? 'bold 48px' : '22px') + ' Georgia'; ctx.fillText(l, W / 2, y0 + i * 44); });
 }
+function button(b, label, sub) {
+  const hover = inBox(mouse.x, mouse.y, b);
+  ctx.fillStyle = hover ? '#d4a017' : '#7a4a26'; ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = 3; ctx.strokeRect(b.x, b.y, b.w, b.h);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 24px Georgia'; ctx.fillText(label, b.x + b.w / 2, b.y + 30);
+  ctx.font = '13px Georgia'; ctx.fillText(sub, b.x + b.w / 2, b.y + 50);
+}
 function draw() {
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * shake * 40, (Math.random() - 0.5) * shake * 40);
   drawBackdrop();
-  actives.forEach(drawPerson);
-  drawCovers();
+  if (inDuel) {
+    ctx.fillStyle = 'rgba(60,20,0,.35)'; ctx.fillRect(0, 0, W, H);
+    drawPerson(boss);
+  } else { actives.forEach(drawPerson); drawCovers(); }
   for (const e of effects) {
     ctx.globalAlpha = Math.min(1, e.life * 3);
-    if (e.text) { ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (0.8 - e.life) * 40); }
+    if (e.text) { ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Georgia'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 40); }
+    else if (e.dust) { ctx.fillStyle = '#d9b98a'; ctx.beginPath(); ctx.arc(e.x, e.y, 3 + (0.5 - e.life) * 10, 0, 7); ctx.fill(); }
     else { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, 7); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
-  if (muzzle > 0) { ctx.fillStyle = 'rgba(255,240,180,.25)'; ctx.fillRect(0, 0, W, H); }
+  if (muzzle > 0) {
+    ctx.fillStyle = 'rgba(255,240,180,.25)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff3b0'; ctx.beginPath();
+    for (let i = 0; i < 16; i++) { const r = i % 2 ? 10 : 28, an = i * Math.PI / 8; ctx.lineTo(mouse.x + Math.cos(an) * r, mouse.y + Math.sin(an) * r); }
+    ctx.fill();
+  }
   if (flash > 0) { ctx.fillStyle = `rgba(200,0,0,${flash * 0.5})`; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
+
   if (state !== 'title') drawHUD();
-  if (state === 'title') centerText(['HIGH NOON SALOON', 'Shoot outlaws before the bar runs out.', "Don't shoot folks with their hands up.", 'Click to start'], 180);
-  if (state === 'hurt') centerText(["YOU'VE BEEN HIT", quip], 240);
   const acc = shots ? Math.round(hits / shots * 100) : 0;
-  if (state === 'over') centerText(['GAME OVER', quip, 'Score ' + score + '   Accuracy ' + acc + '%', 'Click to try again'], 180);
-  if (state === 'win') centerText(['TOWN SAVED', 'Score ' + score + '   Accuracy ' + acc + '%', 'Click to play again'], 200);
-  // crosshair
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 14, 0, 7);
+  if (state === 'title') {
+    overlay(['HIGH NOON SALOON', 'Shoot outlaws before their bar runs out.', "Don't shoot folks with their hands up."], 150);
+    button(BTN.deputy, 'DEPUTY', 'Slower outlaws · 5 lives');
+    button(BTN.gunslinger, 'GUNSLINGER', 'Fast & mean · 3 lives');
+    if (best) { ctx.font = '18px Georgia'; ctx.fillStyle = '#ffe9b8'; ctx.fillText('Best: ' + best, W / 2, 440); }
+  }
+  if (state === 'intro') overlay([banner, inDuel ? "Wait for the bell. Then draw." : 'Get ready...'], 240, 0.45);
+  if (state === 'duelWait') { ctx.textAlign = 'center'; ctx.font = 'bold 36px Georgia'; ctx.fillStyle = '#ffe9b8'; ctx.fillText('Steady...', W / 2, 140); }
+  if (state === 'duelDraw') { ctx.textAlign = 'center'; ctx.font = 'bold 72px Georgia'; ctx.fillStyle = '#ff3333'; ctx.fillText('DRAW!', W / 2, 150); }
+  if (state === 'hurt') overlay(["YOU'VE BEEN HIT", quip, inDuel ? 'Retrying the showdown...' : 'Restarting the wave...'], 220);
+  if (state === 'over') overlay(['GAME OVER', quip, 'Score ' + score + '   Accuracy ' + acc + '%   Best ' + best, 'Click to return to title'], 170);
+  if (state === 'win') overlay(['TOWN SAVED', 'Score ' + score + '   Accuracy ' + acc + '%   Best ' + best, diff.name + ' difficulty', 'Click to return to title'], 170);
+
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 14, 0, 7);
   ctx.moveTo(mouse.x - 22, mouse.y); ctx.lineTo(mouse.x + 22, mouse.y);
   ctx.moveTo(mouse.x, mouse.y - 22); ctx.lineTo(mouse.x, mouse.y + 22); ctx.stroke();
 }
 
-// ============ INPUT ============
+// ===================== INPUT =====================
 function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
 cv.addEventListener('pointermove', e => { mouse = toGame(e); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   audio(); mouse = toGame(e);
-  if (state === 'title' || state === 'over' || state === 'win') { startGame(); return; }
-  if (state !== 'play') return;
-  if (e.button === 2) { reload(); return; }
-  if (mouse.x > W - 170 && mouse.y > H - 70) { reload(); return; } // tap bullets
+  if (state === 'title') {
+    if (inBox(mouse.x, mouse.y, BTN.deputy)) startGame('deputy');
+    else if (inBox(mouse.x, mouse.y, BTN.gunslinger)) startGame('gunslinger');
+    return;
+  }
+  if (state === 'over' || state === 'win') { state = 'title'; inDuel = false; actives = []; return; }
+  if (!['play', 'duelWait', 'duelDraw'].includes(state)) return;
+  if (e.button === 2 || (mouse.x > W - 170 && mouse.y > H - 70)) { reload(); return; }
   shoot(mouse.x, mouse.y);
 });
-window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && state === 'play') reload(); });
+window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && ['play', 'duelWait', 'duelDraw'].includes(state)) reload(); });
 
-// ============ LOOP ============
+// ===================== LOOP =====================
 let last = performance.now();
 function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
