@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>High Noon Saloon</title>
+<title>High Noon: The Legend of Mad Dog Buchanan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -14,110 +14,201 @@
 <body>
 <canvas id="game" width="960" height="540"></canvas>
 <script>
-// ===================== LEVEL DATA (edit to make new levels) =====================
-// Spots = where figures pop up (960x540 coords). In Phase 3 these become hit zones over video.
-const SPOTS = {
-  winL:   { x: 234, y: 165, w: 81,  h: 99,  cover: 'window' },
-  winR:   { x: 645, y: 165, w: 81,  h: 99,  cover: 'window' },
-  door:   { x: 441, y: 246, w: 81,  h: 159, cover: 'door' },
-  roof:   { x: 450, y: 0,   w: 69,  h: 66,  cover: 'roof' },
-  barrel: { x: 90,  y: 300, w: 81,  h: 111, cover: 'barrel' },
-  trough: { x: 780, y: 300, w: 81,  h: 111, cover: 'trough' },
-  street: { x: 402, y: 258, w: 156, h: 216, cover: 'none' }, // showdown
-};
-// t = seconds into wave, window = seconds before an outlaw fires (scaled by difficulty)
-const WAVES = [
-  { name: 'Rough Welcome', events: [
-    { t: 1.0, spot: 'winL',   type: 'outlaw',    window: 1.9 },
-    { t: 3.0, spot: 'barrel', type: 'outlaw',    window: 1.7 },
-    { t: 4.5, spot: 'door',   type: 'bystander', window: 1.8 },
-    { t: 6.0, spot: 'trough', type: 'outlaw',    window: 1.5 },
-    { t: 7.0, spot: 'winR',   type: 'outlaw',    window: 1.5 },
-  ]},
-  { name: 'Trouble Upstairs', events: [
-    { t: 1.0, spot: 'roof',   type: 'outlaw',    window: 1.3 },
-    { t: 2.5, spot: 'winL',   type: 'bystander', window: 1.6 },
-    { t: 3.0, spot: 'winR',   type: 'outlaw',    window: 1.3 },
-    { t: 4.5, spot: 'door',   type: 'outlaw',    window: 1.2 },
-    { t: 6.0, spot: 'barrel', type: 'bystander', window: 1.5 },
-    { t: 6.3, spot: 'trough', type: 'outlaw',    window: 1.1 },
-  ]},
-  { name: 'The Whole Gang', events: [
-    { t: 1.0, spot: 'winL',   type: 'outlaw',    window: 1.1 },
-    { t: 1.2, spot: 'winR',   type: 'outlaw',    window: 1.1 },
-    { t: 2.8, spot: 'door',   type: 'bystander', window: 1.4 },
-    { t: 3.2, spot: 'roof',   type: 'outlaw',    window: 1.0 },
-    { t: 4.6, spot: 'barrel', type: 'outlaw',    window: 1.0 },
-    { t: 4.8, spot: 'trough', type: 'outlaw',    window: 1.0 },
-    { t: 6.5, spot: 'door',   type: 'outlaw',    window: 0.9 },
-  ]},
+// =====================================================================
+//  HIGH NOON — THE LEGEND OF MAD DOG BUCHANAN
+//  Story + level data is at the top. Engine and art are below.
+// =====================================================================
+const W = 960, H = 540, P = 3, LW = 320, LH = 180, INK = '#1b1410';
+
+// ---------------- CHARACTERS (sprites are built from these specs) ----------------
+const OUTLAWS = [
+  { hat: 'cowboy', hatC: '#2a2230', skin: '#e0a070', hair: '#3b2416', shirt: '#6b3a7a', vest: '#2b2b2b', pants: '#3a3550', boots: '#2a1a10', face: 'bandana', bandC: '#c0302b' },
+  { hat: 'cowboy', hatC: '#6b4a2a', skin: '#c98a5a', hair: '#1b1410', shirt: '#8a2a24', pants: '#4a3a2a', boots: '#2a1a10', face: 'beard', beardC: '#3b2416' },
+  { hat: 'bowler', hatC: '#2a2a2a', skin: '#e8b07a', hair: '#7a4a20', shirt: '#3a5a3a', vest: '#6b4a2a', pants: '#2e2e3a', boots: '#2a1a10', face: 'mustache', beardC: '#7a4a20' },
+  { hat: 'cowboy', hatC: '#1b1b1b', skin: '#a86a40', hair: '#1b1410', shirt: '#2f4a6b', vest: '#1b1b1b', pants: '#2a2a2a', boots: '#1b1b1b', face: 'bandana', bandC: '#e8e0c8' },
+  { hat: 'cowboy', hatC: '#8a6a3a', skin: '#f0c090', hair: '#c0602a', shirt: '#b8862a', coat: '#5a4636', pants: '#3a4a6a', boots: '#4a2a14', face: 'stubble' },
 ];
-const DIFFICULTY = {
-  deputy:     { name: 'Deputy',     mult: 1.35, lives: 5, draw: 0.9 },
-  gunslinger: { name: 'Gunslinger', mult: 0.8,  lives: 3, draw: 0.55 },
+const BYSTANDERS = [
+  { hat: 'bonnet', hatC: '#f0e0f0', skin: '#f0c090', hair: '#a0522d', shirt: '#9a4a8a', dress: '#9a4a8a', face: 'plain' },
+  { hat: 'cowboy', hatC: '#9a8a6a', skin: '#e0a070', hair: '#e8e8e8', shirt: '#b05a2a', pants: '#4a6aa0', boots: '#4a2a14', face: 'beard', beardC: '#e8e8e8' },
+  { hat: 'none', skin: '#e8b07a', hair: '#3b2416', shirt: '#f4efe0', vest: '#3a2a1a', pants: '#3a3a3a', boots: '#1b1410', face: 'mustache', beardC: '#3b2416' },
+  { hat: 'bowler', hatC: '#5b4636', skin: '#d89a6a', hair: '#5b3a20', shirt: '#e8e0d0', vest: '#4a6a8a', pants: '#5b4636', boots: '#1b1410', face: 'plain' },
+  { hat: 'none', skin: '#f0c8a0', hair: '#e0b040', hairLong: true, shirt: '#c0302b', dress: '#c0302b', face: 'plain' },
+];
+const CHARS = {
+  dewey:    { hat: 'cowboy', hatC: '#c8a46a', skin: '#f0c090', hair: '#a0703a', shirt: '#c8b070', pants: '#6a5a3a', boots: '#4a2a14', face: 'stubble', badge: true },
+  pete:     { hat: 'bowler', hatC: '#6b5a4a', skin: '#e0a070', hair: '#9a9a9a', shirt: '#8a3a3a', vest: '#4a3a2a', pants: '#4a4a3a', boots: '#3b2a20', face: 'beard', beardC: '#b0b0b0', nose: '#d04a3a' },
+  sheriff:  { hat: 'cowboy', hatC: '#e8e0d0', skin: '#d89a6a', hair: '#c8c8c8', shirt: '#4a6a8a', vest: '#6b4a2a', pants: '#3a3a4a', boots: '#4a2a14', face: 'mustache', beardC: '#d8d8d8', badge: true },
+  banker:   { hat: 'bowler', hatC: '#1b1b1b', skin: '#f0c090', hair: '#5a4a3a', shirt: '#f4efe0', vest: '#3a6a4a', pants: '#2a2a2a', boots: '#1b1410', face: 'mustache', beardC: '#5a4a3a', monocle: true },
+  buchanan: { hat: 'cowboy', hatC: '#151515', skin: '#c98a5a', hair: '#1b1410', shirt: '#6b1a1a', coat: '#2a2420', pants: '#2a2a2a', boots: '#151515', face: 'beard', beardC: '#1b1410', scar: true },
 };
+
+// ---------------- LEVELS ----------------
+// Spots are in the 320x180 pixel world. a = anchor: 'top' (window) or 'bottom' (behind cover).
+// Events: [seconds, spot, 'o'utlaw or 'b'ystander, seconds before an outlaw fires]
+const LEVELS = [
+  { name: 'THE SALOON', set: 'saloonExt',
+    spots: { winL: { x: 80, y: 52, w: 26, h: 24, a: 'top' }, winR: { x: 214, y: 52, w: 26, h: 24, a: 'top' },
+             door: { x: 147, y: 92, w: 26, h: 44, a: 'bottom' }, roof: { x: 148, y: 0, w: 24, h: 30, a: 'bottom' },
+             barrel: { x: 26, y: 90, w: 26, h: 36, a: 'bottom' }, trough: { x: 266, y: 90, w: 28, h: 36, a: 'bottom' } },
+    events: [[1.0,'winL','o',1.9],[2.6,'barrel','o',1.8],[4.0,'door','b',1.8],[5.2,'trough','o',1.6],[6.4,'winR','o',1.6],[7.8,'roof','o',1.5],
+             [9.0,'winL','b',1.6],[9.4,'door','o',1.4],[11.0,'barrel','o',1.3],[11.2,'trough','o',1.3],[12.8,'roof','o',1.2]] },
+  { name: 'INSIDE THE SALOON', set: 'saloonInt',
+    spots: { balL: { x: 40, y: 6, w: 26, h: 40, a: 'bottom' }, balR: { x: 254, y: 6, w: 26, h: 40, a: 'bottom' },
+             bar: { x: 146, y: 76, w: 28, h: 44, a: 'bottom' }, piano: { x: 24, y: 76, w: 28, h: 44, a: 'bottom' },
+             table: { x: 260, y: 74, w: 28, h: 44, a: 'bottom' } },
+    events: [[1.0,'bar','o',1.7],[2.4,'balL','o',1.6],[3.6,'piano','b',1.8],[4.4,'balR','o',1.5],[5.8,'table','o',1.4],[7.0,'bar','b',1.6],
+             [7.6,'piano','o',1.3],[9.0,'balL','o',1.2],[9.2,'balR','o',1.2],[10.8,'table','o',1.1],[11.6,'bar','o',1.0]] },
+  { name: 'THE JAIL', set: 'jail',
+    spots: { winL: { x: 104, y: 68, w: 24, h: 22, a: 'top' }, winR: { x: 192, y: 68, w: 24, h: 22, a: 'top' },
+             door: { x: 148, y: 86, w: 24, h: 50, a: 'bottom' }, tower: { x: 268, y: 6, w: 24, h: 32, a: 'bottom' },
+             wagon: { x: 20, y: 74, w: 28, h: 44, a: 'bottom' }, outhouse: { x: 69, y: 104, w: 16, h: 32, a: 'bottom' } },
+    events: [[1.0,'door','o',1.6],[2.4,'outhouse','b',1.8],[3.4,'tower','o',1.5],[4.6,'wagon','o',1.4],[5.8,'winL','o',1.3],[6.0,'winR','o',1.3],
+             [7.4,'outhouse','o',1.2],[8.6,'door','b',1.5],[9.0,'tower','o',1.1],[10.4,'wagon','o',1.1],[10.6,'winL','o',1.0],[12.0,'door','o',0.95]] },
+  { name: 'THE BANK', set: 'bank',
+    spots: { tel1: { x: 33, y: 60, w: 30, h: 44, a: 'bottom' }, tel2: { x: 105, y: 60, w: 30, h: 44, a: 'bottom' },
+             tel3: { x: 177, y: 60, w: 30, h: 44, a: 'bottom' }, vault: { x: 258, y: 72, w: 28, h: 36, a: 'bottom' },
+             plant: { x: 2, y: 78, w: 28, h: 44, a: 'bottom' } },
+    events: [[1.0,'tel2','o',1.4],[2.2,'tel1','b',1.6],[2.6,'tel3','o',1.3],[4.0,'vault','o',1.2],[5.2,'plant','o',1.2],[6.4,'tel2','b',1.5],
+             [6.8,'tel1','o',1.1],[8.0,'vault','o',1.0],[8.2,'tel3','o',1.0],[9.6,'plant','o',0.95],[10.8,'tel2','o',0.9],[11.0,'vault','o',0.9]] },
+];
+const DUEL_SPOTS = { street: { x: 140, y: 92, w: 40, h: 72, a: 'bottom' } };
+
+// ---------------- STORY ----------------
+const SPEAK = {
+  narr:     { name: '',                 color: '#f4efe0' },
+  dewey:    { name: 'DEPUTY DEWEY',     color: '#ffd23f' },
+  pete:     { name: 'PIANO PETE',     color: '#ff9a6b' },
+  sheriff:  { name: 'SHERIFF TATE', color: '#9fd8ff' },
+  banker:   { name: 'MR. PENNYWORTH',   color: '#a8f0a0' },
+  buchanan: { name: 'MAD DOG BUCHANAN', color: '#ff6b5b' },
+};
+const CUTS = {
+  intro: { set: 'town', actors: [{ who: 'dewey', x: 150, pose: 'cower' }], after: () => barrel(166, 104, 24, 20), lines: [
+    ['narr', 'DUSTWATER GULCH, 1881. A QUIET LITTLE TOWN... USUALLY.'],
+    ['dewey', 'PSST! STRANGER! OVER HERE, BEHIND THE BARREL!'],
+    ['dewey', "NAME'S DEPUTY DEWEY PICKETT. *HIC* I'M, UH... GUARDIN' THIS BARREL."],
+    ['dewey', "IT'S A WHISKEY BARREL. SO I'M GUARDIN' IT REAL CLOSE."],
+    ['dewey', "YOU AIN'T HEARD? MAD DOG BUCHANAN AND HIS GANG RODE IN THIS MORNIN'."],
+    ['dewey', 'THEY LOCKED THE SHERIFF IN HIS OWN JAIL AND TOOK OVER THE SALOON.'],
+    ['dewey', "AND THEY'RE FIXIN' TO CLEAN OUT THE BANK BY SUNDOWN."],
+    ['dewey', "ME? I'D HELP, BUT MY MAMA SAID NEVER GET SHOT ON A TUESDAY. *HIC*"],
+    ['dewey', 'START AT THE SALOON. AND MIND THE FOLKS WITH THEIR HANDS UP!'],
+  ]},
+  doors: { set: 'saloonExt', actors: [], lines: [
+    ['narr', 'THE LAST OF THEM SCRAMBLE INSIDE. YOU KICK OPEN THE BATWING DOORS...'],
+  ]},
+  pete: { set: 'saloonInt', actors: [{ who: 'pete', x: 196, pose: 'drink' }], lines: [
+    ['pete', "WELL I'LL BE... WOW. YOU ARE SOMETHIN', STRANGER."],
+    ['pete', "NAME'S PIANO PETE. I SAW THE WHOLE THING FROM UNDER MY PIANO."],
+    ['pete', "THEY MADE ME PLAY 'OH SUSANNA' FOR THREE HOURS STRAIGHT. YOU'RE MY HERO."],
+    ['pete', "BUCHANAN'S BOYS GOT THE SHERIFF LOCKED UP OVER AT THE JAIL."],
+    ['pete', "YOU GO SPRING HIM. I'LL PLAY YOU SOME TRAVELIN' MUSIC."],
+  ]},
+  sheriff: { set: 'jail', actors: [{ who: 'sheriff', x: 160, pose: 'idle' }], lines: [
+    ['sheriff', "MUCH OBLIGED, STRANGER. NAME'S AMOS TATE. SHERIFF... FOR NOW."],
+    ['sheriff', "TWENTY YEARS WEARIN' THIS BADGE. I'M GETTIN' TOO OLD FOR THIS."],
+    ['sheriff', "I'M HANGIN' IT UP AND HEADIN' TO CALIFORNIA. HEARD THE ORANGES ARE NICE."],
+    ['sheriff', "BUT BUCHANAN'S GANG IS HITTIN' THE BANK RIGHT NOW."],
+    ['sheriff', "CLEAR 'EM OUT FOR ME? CONSIDER IT MY RETIREMENT PRESENT."],
+  ]},
+  banker: { set: 'bank', actors: [{ who: 'banker', x: 120, pose: 'idle' }], lines: [
+    ['banker', 'OH, THANK HEAVENS! MORTIMER PENNYWORTH, MANAGER. EVERY CENT ACCOUNTED FOR!'],
+    ['banker', "WELL... MINUS SEVEN DOLLARS. I'LL FIND IT."],
+    ['banker', 'BUT I HAVE A MESSAGE FROM MAD DOG HIMSELF. HE SAID...'],
+    ['banker', "'TELL THAT STRANGER I'LL BE WAITIN' IN THE STREET. HIGH NOON.'"],
+    ['banker', "IT'S 11:58. NO PRESSURE."],
+  ]},
+  buchanan: { set: 'street', actors: [{ who: 'buchanan', x: 160, pose: 'holster' }], lines: [
+    ['buchanan', "SO YOU'RE THE ONE BEEN SHOOTIN' UP MY GANG."],
+    ['buchanan', "THIS TOWN AIN'T BIG ENOUGH FOR THE BOTH OF US."],
+    ['buchanan', "...MOSTLY 'CAUSE IT'S REAL SMALL. WHEN THAT BELL RINGS, DRAW."],
+  ]},
+  party: { set: 'party', party: true, actors: [
+      { who: 'dewey', x: 52, pose: 'hands' }, { who: 'pete', x: 124, pose: 'drink' },
+      { who: 'banker', x: 196, pose: 'wave' }, { who: 'sheriff', x: 268, pose: 'wave' } ], lines: [
+    ['dewey', "YOU DID IT! I MEAN, WE DID IT. I GUARDED THAT BARREL REAL GOOD. *HIC*"],
+    ['pete', "THIS ONE'S FOR YOU, STRANGER! ANYTHING BUT 'OH SUSANNA.'"],
+    ['banker', 'THE BANK IS PLEASED TO OFFER A REWARD OF... SEVEN DOLLARS. FOUND IT!'],
+    ['sheriff', 'TOWN NEEDS A NEW SHERIFF. THE BADGE IS YOURS IF YOU WANT IT, PARTNER.'],
+  ]},
+};
+const STORY = [
+  { cut: 'intro' }, { level: 0 }, { cut: 'doors' }, { level: 1 }, { cut: 'pete' }, { level: 2 },
+  { cut: 'sheriff' }, { level: 3 }, { cut: 'banker' }, { cut: 'buchanan' }, { duel: true }, { cut: 'party' }, { end: true },
+];
+
+// ---------------- DEATH SCREENS ----------------
 const HURT = {
   shot:      { title: "YOU'VE BEEN SHOT!", reason: 'AN OUTLAW GOT YOU FIRST.', color: '#ff3b30' },
   bystander: { title: 'INNOCENT DOWN!',    reason: 'YOU SHOT A TOWNSFOLK.',    color: '#7fb2ff' },
   early:     { title: 'DREW TOO EARLY!',   reason: 'WAIT FOR THE BELL.',       color: '#ffb347' },
-  duel:      { title: 'TOO SLOW, PARTNER', reason: 'HE OUTDREW YOU.',          color: '#ff3b30' },
+  duel:      { title: 'TOO SLOW, PARTNER', reason: 'MAD DOG OUTDREW YOU.',     color: '#ff3b30' },
 };
-const QUIPS = {
-  shot:      ['"SON, YOU\'RE SUPPOSED TO SHOOT FIRST."', '"I\'LL PATCH YOU UP, BUT I\'M BILLIN\' YA."', '"THIRD HOLE THIS WEEK. IN YOU."'],
-  bystander: ['"THAT WAS THE PIANO PLAYER. NOW WHO PLAYS?"', '"SHOOT THE ONES WITH GUNS, STRANGER."', '"THE SHERIFF\'S GONNA WANT A WORD."'],
-  early:     ['"YOU DRAW BEFORE THE BELL, YOU GET BURIED."', '"PATIENCE, COWBOY. PATIENCE."'],
-  duel:      ['"HE WAS FASTER. SHOCKING, I KNOW."', '"NEXT TIME, TRY PULLING THE TRIGGER."'],
+const EPITAPHS = {
+  shot: [
+    ['HERE LIES LESTER MOORE', 'FOUR SLUGS FROM A .44', 'NO LES, NO MORE.'],
+    ['HERE LIES A STRANGER.', 'SECOND FASTEST DRAW', 'IN DUSTWATER GULCH.'],
+    ['HE CALLED BILL SMITH', 'A LIAR.'],
+    ['I TOLD YOU', 'I WAS SICK.'],
+    ['HERE LIES JACK.', 'HE DONE HIS BEST.', "IT WEREN'T ENOUGH."],
+    ['HE BLINKED.'],
+  ],
+  duel: [['ALMOST FAST ENOUGH.', 'ALMOST.'], ['HE REACHED FOR IT.', 'MAD DOG REACHED', 'FASTER.']],
+  early: [['HE DREW BEFORE', 'THE BELL. THE BELL', 'GOT THE LAST WORD.'], ['PATIENCE WAS NOT', 'HIS STRONG SUIT.']],
+};
+const WISDOM = [
+  ["PLEASE DON'T SHOOT", 'THE PIANO PLAYER.', "HE'S DOING HIS BEST."],
+  ['IF YOU FIND YOURSELF', 'IN A HOLE,', "QUIT DIGGIN'."],
+  ['NEVER KICK A FRESH', 'COW PIE ON A', 'HOT DAY.'],
+  ['ALWAYS DRINK', 'UPSTREAM', 'FROM THE HERD.'],
+  ["DON'T SQUAT WITH", 'YOUR SPURS ON.'],
+  ['LOOK BEFORE YOU LEAP.', 'AND BEFORE', 'YOU SHOOT.'],
+];
+const DIFFICULTY = {
+  deputy:     { name: 'DEPUTY',     mult: 1.35, lives: 5, draw: 0.9 },
+  gunslinger: { name: 'GUNSLINGER', mult: 0.8,  lives: 3, draw: 0.55 },
 };
 
-// ===================== PIXEL ART =====================
-const PAL = { K: '#1b1410', S: '#e8b07a', E: '#1b1410', R: '#c0302b', B: '#3a2f45', G: '#b8b8c0', Y: '#7a5224', W: '#f4efe0', L: '#4a7ab8', D: '#5b4636' };
-const PAL_FLASH = Object.fromEntries(Object.keys(PAL).map(k => [k, '#ffffff']));
-const OUTLAW_AIM = [
-  '...KKKKKK....', '...KKKKKK....', '.KKKKKKKKKK..', '....SSSSS....', '....SESES....', '....RRRRR....',
-  '...RRRRRRR...', '..BBBBBBBBB..', '.BBBBBBBBBSGG', '.BBBBBBBBBB..', '..BBBBBBBB...', '..BBBBBBBB...',
-  '..YYYYYYYY...', '..BBBBBBBB...', '..BBB..BBB...', '..BBB..BBB...', '..BBB..BBB...', '..KKK..KKK...',
-];
-const OUTLAW_HOLSTER = OUTLAW_AIM.map((r, i) => i === 8 || i === 9 ? '..BBBBBBBBB..' : i === 12 ? '..YYYYYYYYG..' : i === 13 ? '..BBBBBBBBG..' : r);
-const BYSTANDER = [
-  '.S.........S.', '.S..WWWWW..S.', '.S..WWWWW..S.', '.SWWWWWWWWWS.', '.S..SSSSS..S.', '.S..SESES..S.',
-  '.SS.SSSSS.SS.', '..SLLLLLLLS..', '...LLLLLLL...', '...LLLLLLL...', '...LLLLLLL...', '...YYYYYYY...',
-  '...DDDDDDD...', '...DDDDDDD...', '...DDD.DDD...', '...DDD.DDD...', '...DDD.DDD...', '...KKK.KKK...',
-];
-const OUTLAW_HIT = [
-  '.............', '.............', '.............', '....SSSSS....', '....SESES....', '....RRRRR....',
-  'S..RRRRRRR..S', 'SBBBBBBBBBBBS', '..BBBBBBBBB..', '..BBBBBBBBB..', '..BBBBBBBB...', '..BBBBBBBB...',
-  '..YYYYYYYY...', '..BBBBBBBB...', '..BBB..BBB...', '..BBB..BBB...', '..BBB..BBB...', '..KKK..KKK...',
-];
-const HAT = ['...KKKKKK....', '...KKKKKK....', '.KKKKKKKKKK..'];
-const HAT_FLIP = [...HAT].reverse();
+// ---------------- UI SPRITES ----------------
 const HEART = ['.RR.RR.', 'RWRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...'];
 const HEART_PAL = { R: '#e0362c', W: '#ffd0c8' }, HEART_EMPTY = { R: '#3b2a24', W: '#3b2a24' };
 const BULLET = ['.C.', 'CCC', 'CCC', 'YYY', 'YWY', 'YYY', 'YYY', 'DDD'];
 const BULLET_PAL = { C: '#c8743a', Y: '#e2b33c', W: '#fff0a8', D: '#9a7420' };
 const BULLET_SPENT = { C: '#3b2a24', Y: '#3b2a24', W: '#3b2a24', D: '#3b2a24' };
-const GLYPH = { S: ['111','100','111','001','111'], A: ['010','101','111','101','101'], L: ['100','100','100','100','111'], O: ['111','101','101','101','111'], N: ['1001','1101','1011','1001','1001'] };
+const GLYPH = {
+  A: ['010','101','111','101','101'], B: ['110','101','110','101','110'], E: ['111','100','110','100','111'],
+  I: ['111','010','010','010','111'], J: ['001','001','001','101','010'], K: ['101','101','110','101','101'],
+  L: ['100','100','100','100','111'], N: ['1001','1101','1011','1001','1001'], O: ['010','101','101','101','010'],
+  R: ['110','101','110','101','101'], S: ['011','100','010','001','110'], T: ['111','010','010','010','010'],
+};
 
-// ===================== ENGINE STATE =====================
-const W = 960, H = 540, P = 3, LW = 320, LH = 180;
+// =====================================================================
+//  ENGINE STATE
+// =====================================================================
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const buf = document.createElement('canvas'); buf.width = LW; buf.height = LH;
 const g = buf.getContext('2d');
 const FONT = '"Press Start 2P", monospace';
 if (document.fonts && document.fonts.load) document.fonts.load('16px "Press Start 2P"');
 
-let state = 'title', diff = DIFFICULTY.deputy, waveIdx = 0, inDuel = false;
-let time = 0, nextEvent = 0, actives = [], lives = 3, ammo = 6, score = 0, waveStartScore = 0;
-let shots = 0, hits = 0, timer = 0, quip = '', lastHurt = 'shot', clock = 0;
-let flash = 0, muzzle = 0, shake = 0, mouse = { x: W / 2, y: H / 2 }, effects = [];
+let state = 'title', paused = false, diff = DIFFICULTY.deputy, step = 0, levelIdx = 0, spots = {}, inDuel = false;
+let time = 0, nextEvent = 0, events = [], actives = [], lives = 3, ammo = 6, score = 0, levelStartScore = 0;
+let shots = 0, hits = 0, timer = 0, lastHurt = 'shot', epitaph = [], clock = 0;
+let flash = 0, muzzle = 0, shake = 0, mouse = { x: W / 2, y: H / 2 }, effects = [], confetti = [];
 let duelT = 0, drawAt = 0, boss = null, newBest = false;
+let cutName = 'intro', cutLine = 0, cutT = 0, musicT = 0, musicI = 0;
 let best = +(localStorage.getItem('hns_best') || 0);
-const BTN = { deputy: { x: 168, y: 356, w: 288, h: 84 }, gunslinger: { x: 504, y: 356, w: 288, h: 84 } };
+const BTN = { deputy: { x: 168, y: 336, w: 288, h: 84 }, gunslinger: { x: 504, y: 336, w: 288, h: 84 } };
 const AMMO_BOX = { x: W - 162, y: H - 78, w: 150, h: 66 };
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-const SPECKS = Array.from({ length: 140 }, () => ({ x: Math.floor(rnd() * LW), y: 103 + Math.floor(rnd() * 77), c: rnd() < 0.5 ? '#a8763c' : '#d6a865' }));
+const SPECKS = Array.from({ length: 170 }, () => ({ x: Math.floor(rnd() * LW), y: 90 + Math.floor(rnd() * 90), c: rnd() < 0.5 ? '#a8763c' : '#d6a865' }));
 let tumble = { x: -20, t: 5 };
+const pick = a => a[Math.floor(Math.random() * a.length)];
 
-// ===================== SOUND (Web Audio, no files) =====================
+// =====================================================================
+//  SOUND (Web Audio, no files)
+// =====================================================================
 let ac = null;
 function audio() { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); }
 function noise(dur, vol, lp) {
@@ -144,84 +235,139 @@ const sfx = {
   hurt:     () => { noise(0.5, 0.9, 1200); tone('sawtooth', 200, 50, 0.5, 0.2); },
   oops:     () => { tone('triangle', 700, 180, 0.5, 0.25); setTimeout(() => tone('triangle', 400, 120, 0.5, 0.2), 180); },
   bell:     () => { tone('sine', 880, 870, 1.2, 0.3); tone('sine', 1320, 1300, 0.8, 0.12); },
+  clear:    () => [659, 784, 1046].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.15, 0.08), i * 110)),
+  blip:     () => tone('square', 520, 520, 0.03, 0.03),
   win:      () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.25, 0.1), i * 150)),
 };
+const TUNE = [392, 523, 523, 587, 659, 659, 587, 523, 440, 523, 587, 523, 392, 0, 494, 0];
+function partyMusic(dt) {
+  musicT += dt;
+  while (musicT > 0.17) {
+    musicT -= 0.17; const f = TUNE[musicI++ % TUNE.length];
+    if (f) tone('square', f, f, 0.14, 0.04);
+    if (musicI % 4 === 1) tone('triangle', 131, 131, 0.16, 0.08);
+  }
+}
 
-// ===================== GAME FLOW =====================
+// =====================================================================
+//  STORY FLOW
+// =====================================================================
 function startGame(d) {
-  diff = DIFFICULTY[d]; lives = diff.lives; score = 0; shots = 0; hits = 0; effects = []; newBest = false;
-  startWave(0);
+  diff = DIFFICULTY[d]; lives = diff.lives; score = 0; levelStartScore = 0;
+  shots = 0; hits = 0; newBest = false; paused = false; goStep(0);
 }
-function startWave(i) {
-  waveIdx = i; inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; waveStartScore = score;
-  if (i >= WAVES.length) return startDuel();
+function goStep(i) {
+  step = i; const s = STORY[i]; effects = [];
+  if (s.cut) { cutName = s.cut; cutLine = 0; cutT = 0; state = 'cut'; inDuel = s.cut === 'buchanan'; }
+  else if (s.level != null) startLevel(s.level);
+  else if (s.duel) startDuel();
+  else { state = 'end'; inDuel = false; saveBest(); sfx.win(); }
+}
+const nextStep = () => goStep(step + 1);
+function startLevel(i) {
+  levelIdx = i; const L = LEVELS[i]; spots = L.spots; levelStartScore = score; lives = diff.lives; // refill each level
+  events = L.events.map(([t, spot, ty, win], n) => ({ t, spot, type: ty === 'o' ? 'outlaw' : 'bystander', window: win,
+    spec: ty === 'o' ? { ...OUTLAWS[(n + i) % OUTLAWS.length], pose: 'aim' } : { ...BYSTANDERS[(n + i) % BYSTANDERS.length], pose: 'hands' } }));
+  resetLevel();
+}
+function resetLevel() { // dying sends you back to the START of the level
+  inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; score = levelStartScore; effects = [];
   state = 'intro'; timer = 1.8;
 }
-function startDuel() {
-  inDuel = true; actives = []; ammo = 6; waveStartScore = score;
+function startDuel() { spots = DUEL_SPOTS; levelStartScore = score; lives = diff.lives; resetDuel(); }
+function resetDuel() {
+  inDuel = true; actives = []; ammo = 6; score = levelStartScore; effects = [];
+  boss = { spot: 'street', type: 'outlaw', spec: { ...CHARS.buchanan, pose: 'holster' }, age: 0, window: 99, rise: 1, dead: false, deadTime: 0, boss: true };
   state = 'intro'; timer = 1.8;
-  boss = { spot: 'street', type: 'outlaw', age: 0, window: 99, rise: 1, dead: false, deadTime: 0, boss: true };
 }
+const retry = () => (inDuel ? resetDuel() : resetLevel());
+function toTitle() { state = 'title'; inDuel = false; actives = []; paused = false; }
+function advanceCut() {
+  const ln = CUTS[cutName].lines[cutLine];
+  if (Math.floor(cutT * 45) < ln[1].length) { cutT = 99; return; }
+  cutLine++; cutT = 0; sfx.blip();
+  if (cutLine >= CUTS[cutName].lines.length) nextStep();
+}
+
+// =====================================================================
+//  GAMEPLAY
+// =====================================================================
 function reload() { if (ammo < 6) { ammo = 6; sfx.reload(); } }
 function hurt(kind) {
   lives--; lastHurt = kind; flash = 1; shake = 0.4; actives = [];
+  epitaph = kind === 'bystander' ? pick(WISDOM) : pick(EPITAPHS[kind]);
   kind === 'bystander' ? sfx.oops() : sfx.hurt();
-  const list = QUIPS[kind]; quip = list[Math.floor(Math.random() * list.length)];
-  score = waveStartScore; // no farming points by dying mid-wave
-  if (lives <= 0) { state = 'over'; saveBest(); } else { state = 'hurt'; timer = 2.8; }
+  if (lives <= 0) { state = 'over'; saveBest(); } else { state = 'hurt'; timer = 4.5; }
 }
 function saveBest() { if (score > best) { best = score; newBest = true; localStorage.setItem('hns_best', best); } }
 function inBox(x, y, s) { return x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h; }
-
-function shoot(x, y) {
+function figRect(a) {
+  const s = spots[a.spot], sc = a.boss ? 2 : 1, fw = 20 * sc, fh = 32 * sc;
+  let y = s.a === 'top' ? s.y + 2 : s.y + s.h - fh;
+  y += Math.round((1 - a.rise) * fh);
+  return { x: Math.round(s.x + s.w / 2 - fw / 2), y, w: fw, h: fh };
+}
+function shoot(sx, sy) {
   if (ammo <= 0) { sfx.empty(); return; }
   ammo--; shots++; muzzle = 0.07; shake = Math.max(shake, 0.08); sfx.gun();
+  const x = sx / P, y = sy / P;
   if (inDuel) {
     if (state === 'duelWait') return hurt('early');
-    if (state === 'duelDraw' && inBox(x, y, SPOTS.street)) {
+    if (state === 'duelDraw' && inBox(x, y, spots.street)) {
       hits++; boss.dead = true; boss.deadTime = 0; knockOff(boss); sfx.hit();
       const bonus = Math.round(500 * Math.max(0, 1 - duelT / diff.draw));
-      score += 500 + bonus; effects.push({ x: 480, y: 220, life: 1, text: '+' + (500 + bonus) });
-      state = 'duelWon'; timer = 1.8; return;
+      score += 500 + bonus; effects.push({ x: 160, y: 80, life: 1, text: '+' + (500 + bonus) });
+      state = 'duelWon'; timer = 2; return;
     }
     return miss(x, y);
   }
   for (let i = actives.length - 1; i >= 0; i--) {
-    const a = actives[i], s = SPOTS[a.spot];
-    if (a.dead || a.rise < 0.6 || !inBox(x, y, s)) continue;
+    const a = actives[i];
+    if (a.dead || a.rise < 0.6 || !inBox(x, y, spots[a.spot]) || !inBox(x, y, figRect(a))) continue;
     a.dead = true; a.deadTime = 0; sfx.hit();
     if (a.type === 'outlaw') {
       hits++; knockOff(a);
-      const bonus = Math.round(100 * Math.max(0, 1 - a.age / a.window));
+      const bonus = Math.round(100 * Math.max(0, 1 - a.age / a.window)), r = figRect(a);
       score += 100 + bonus;
-      effects.push({ x: s.x + s.w / 2, y: Math.max(s.y, 60), life: 0.8, text: '+' + (100 + bonus) });
+      effects.push({ x: r.x + r.w / 2, y: Math.max(r.y, 14), life: 0.8, text: '+' + (100 + bonus) });
     } else hurt('bystander');
     return;
   }
   miss(x, y);
 }
 function knockOff(a) {
-  const s = SPOTS[a.spot], sc = a.boss ? 4 : 2;
+  const r = figRect(a), sc = a.boss ? 2 : 1;
   a.dir = Math.random() < 0.5 ? -1 : 1;
-  const x = Math.round(Lo(s.x + s.w / 2) - 13 * sc / 2), y = Lo(s.y) + (a.boss ? 0 : 2);
-  effects.push({ phys: true, hat: true, sc, x, y, vx: a.dir * (25 + Math.random() * 20), vy: -110 - Math.random() * 30, life: 1.3 });
-  effects.push({ phys: true, gun: true, sc, x: x + 11 * sc, y: y + 8 * sc, vx: -a.dir * 20, vy: -50, life: 0.9 });
+  effects.push({ phys: true, hat: true, spec: { ...a.spec, hatOnly: true }, sc, x: r.x, y: r.y, vx: a.dir * (25 + Math.random() * 20) * sc, vy: -110 * sc, life: 1.3 });
+  effects.push({ phys: true, gun: true, sc, x: r.x + 16 * sc, y: r.y + 13 * sc, vx: -a.dir * 20, vy: -50, life: 0.9 });
 }
 function miss(x, y) {
   effects.push({ x, y, life: 0.4, hole: true });
-  for (let i = 0; i < 6; i++) effects.push({ x, y, life: 0.5, dust: true, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 90 });
+  for (let i = 0; i < 6; i++) effects.push({ x, y, life: 0.5, dust: true, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30 });
   if (Math.random() < 0.5) sfx.ricochet();
 }
 
 function update(dt) {
   clock += dt;
+  if (paused) return;
   flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt); shake = Math.max(0, shake - dt);
-  effects.forEach(e => { e.life -= dt; if (e.dust) { e.x += e.vx * dt; e.y += e.vy * dt; } if (e.phys) { e.vy += 320 * dt; e.x += e.vx * dt; e.y += e.vy * dt; } });
+  effects.forEach(e => {
+    e.life -= dt;
+    if (e.dust) { e.x += e.vx * dt; e.y += e.vy * dt; }
+    if (e.phys) { e.vy += 320 * dt; e.x += e.vx * dt; e.y += e.vy * dt; }
+  });
   effects = effects.filter(e => e.life > 0);
   if (boss && boss.dead) boss.deadTime += dt;
   tumble.t -= dt;
   if (tumble.t <= 0) { tumble.x += dt * 45; if (tumble.x > LW + 10) { tumble.x = -20; tumble.t = 8 + rnd() * 10; } }
+  const partyOn = state === 'end' || (state === 'cut' && CUTS[cutName].party);
+  if (partyOn) {
+    partyMusic(dt);
+    if (confetti.length < 70) confetti.push({ x: Math.random() * LW, y: -4, vy: 20 + Math.random() * 30, vx: (Math.random() - 0.5) * 12, c: pick(['#ffd23f', '#ff3b30', '#7fb2ff', '#a8f0a0', '#f4efe0']) });
+    confetti.forEach(c => { c.y += c.vy * dt; c.x += c.vx * dt; }); confetti = confetti.filter(c => c.y < LH);
+  } else confetti = [];
 
+  if (state === 'cut' || state === 'end' || state === 'title' || state === 'over') { if (state === 'cut') cutT += dt; return; }
   if (state === 'intro') {
     timer -= dt;
     if (timer <= 0) {
@@ -230,16 +376,16 @@ function update(dt) {
     }
     return;
   }
-  if (state === 'hurt') { timer -= dt; if (timer <= 0) inDuel ? startDuel() : startWave(waveIdx); return; }
+  if (state === 'clear') { timer -= dt; if (timer <= 0) nextStep(); return; }
+  if (state === 'hurt') { timer -= dt; if (timer <= 0) retry(); return; }
   if (state === 'duelWait') { duelT += dt; if (duelT >= drawAt) { state = 'duelDraw'; duelT = 0; sfx.bell(); } return; }
   if (state === 'duelDraw') { duelT += dt; boss.age = duelT; boss.window = diff.draw; if (duelT >= diff.draw) hurt('duel'); return; }
-  if (state === 'duelWon') { timer -= dt; if (timer <= 0) { state = 'win'; saveBest(); sfx.win(); } return; }
+  if (state === 'duelWon') { timer -= dt; if (timer <= 0) nextStep(); return; }
   if (state !== 'play') return;
 
   time += dt;
-  const evs = WAVES[waveIdx].events;
-  while (nextEvent < evs.length && evs[nextEvent].t <= time) {
-    const e = evs[nextEvent++];
+  while (nextEvent < events.length && events[nextEvent].t <= time) {
+    const e = events[nextEvent++];
     actives.push({ ...e, window: e.window * diff.mult, age: 0, rise: 0, dead: false, deadTime: 0 });
   }
   for (const a of actives) {
@@ -252,160 +398,440 @@ function update(dt) {
     }
   }
   actives = actives.filter(a => !a.gone && !(a.dead && a.deadTime > 0.9));
-  if (nextEvent >= evs.length && actives.length === 0) startWave(waveIdx + 1);
+  if (nextEvent >= events.length && actives.length === 0) { state = 'clear'; timer = 1.8; sfx.clear(); }
 }
 
-// ===================== PIXEL WORLD (drawn at 320x180, scaled 3x) =====================
-const Lo = v => Math.round(v / P);
-function rect(c, x, y, w, h, col) { c.fillStyle = col; c.fillRect(x, y, w, h); }
-function sprite(c, rows, pal, x, y, sc, shear = 0) {
-  const n = rows.length;
-  for (let r = 0; r < n; r++) {
-    const off = shear ? Math.round(shear * (n - 1 - r) / (n - 1)) * sc : 0; // top leans, feet stay planted
-    for (let i = 0; i < rows[r].length; i++) {
-      const ch = rows[r][i]; if (ch === '.') continue;
-      c.fillStyle = pal[ch]; c.fillRect(x + off + i * sc, y + r * sc, sc, sc);
-    }
+// =====================================================================
+//  CHARACTER SPRITE BUILDER (18x30 grid + auto shading + ink outline)
+// =====================================================================
+const GW = 18, GH = 30;
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * f))));
+  return '#' + ((1 << 24) | (c[0] << 16) | (c[1] << 8) | c[2]).toString(16).slice(1);
+}
+function buildGrid(sp) {
+  const G = Array.from({ length: GH }, () => Array(GW).fill(null));
+  const F = (x, y, w, h, c) => { if (!c) return; for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && i < GW && j >= 0 && j < GH) G[j][i] = c; };
+  const pose = sp.pose || 'idle', arm = sp.coat || sp.shirt, skin = sp.skin;
+  if (!sp.hatOnly) {
+    if (sp.dress) { for (let r = 0; r < 10; r++) { const w = 8 + Math.floor(r / 3) * 2; F(8 - w / 2, 20 + r, w, 1, r === 9 ? shade(sp.dress, 0.7) : sp.dress); } }
+    else { F(4, 21, 3, 7, sp.pants); F(9, 21, 3, 7, sp.pants); F(3, 28, 4, 2, sp.boots); F(9, 28, 4, 2, sp.boots); F(4, 20, 8, 1, '#3b2416'); F(7, 20, 2, 1, '#e2b33c'); }
+    F(4, 12, 8, 8, sp.shirt);
+    if (sp.vest) { F(4, 12, 2, 8, sp.vest); F(10, 12, 2, 8, sp.vest); }
+    if (sp.coat) { F(3, 12, 2, 16, sp.coat); F(11, 12, 2, 16, sp.coat); }
+    if (sp.badge) F(sp.vest ? 4 : 5, 14, 2, 2, '#f0d060');
+    F(7, 11, 2, 1, skin); F(5, 5, 6, 6, skin);
+    if (sp.hairLong) { F(4, 4, 1, 8, sp.hair); F(11, 4, 1, 8, sp.hair); }
+    F(6, 7, 1, 1, INK); F(9, 7, 1, 1, INK);
+    F(7, 8, 2, 1, sp.nose || shade(skin, 0.82));
+    const bc = sp.beardC || sp.hair;
+    if (sp.face === 'bandana') { F(5, 9, 6, 2, sp.bandC); F(6, 11, 4, 1, sp.bandC); F(7, 12, 2, 1, sp.bandC); }
+    else if (sp.face === 'beard') { F(5, 9, 6, 2, bc); F(6, 11, 4, 1, bc); F(7, 9, 2, 1, '#3b1a10'); }
+    else if (sp.face === 'mustache') { F(6, 9, 4, 1, bc); F(5, 10, 1, 1, bc); F(10, 10, 1, 1, bc); }
+    else if (sp.face === 'stubble') { for (const [i, j] of [[5, 9], [6, 10], [8, 10], [10, 9], [9, 10]]) F(i, j, 1, 1, shade(skin, 0.72)); F(7, 9, 2, 1, shade(skin, 0.6)); }
+    else F(7, 9, 2, 1, shade(skin, 0.68));
+    if (sp.monocle) { F(9, 7, 1, 1, '#e2b33c'); F(10, 8, 1, 3, '#e2b33c'); }
+    if (sp.scar) F(9, 5, 1, 3, '#9a3a3a');
+  }
+  const hc = sp.hatC;
+  if (sp.hat === 'cowboy') { F(6, 0, 4, 1, hc); F(5, 1, 6, 2, hc); F(5, 3, 6, 1, shade(hc, 0.6)); F(2, 4, 12, 1, hc); F(2, 3, 1, 1, hc); F(13, 3, 1, 1, hc); }
+  else if (sp.hat === 'bowler') { F(6, 1, 4, 1, hc); F(5, 2, 6, 1, hc); F(5, 3, 6, 1, shade(hc, 0.6)); F(4, 4, 8, 1, hc); }
+  else if (sp.hat === 'bonnet') { F(4, 2, 8, 3, hc); F(4, 5, 1, 5, hc); F(11, 5, 1, 5, hc); F(5, 5, 6, 1, sp.hair); F(5, 11, 1, 1, '#c04a6a'); F(10, 11, 1, 1, '#c04a6a'); }
+  else if (!sp.hatOnly) { F(5, 3, 6, 2, sp.hair); F(5, 5, 1, 2, sp.hair); F(10, 5, 1, 2, sp.hair); }
+  if (sp.hatOnly) return G;
+  const idleL = () => { F(2, 12, 2, 8, arm); F(2, 20, 2, 1, skin); }, idleR = () => { F(12, 12, 2, 8, arm); F(12, 20, 2, 1, skin); };
+  switch (pose) {
+    case 'aim': idleL(); F(12, 13, 3, 2, arm); F(15, 13, 1, 2, skin); F(15, 12, 3, 1, '#c8c8d0'); F(16, 13, 2, 1, '#8a8a94'); break;
+    case 'holster': idleL(); idleR(); F(11, 21, 2, 3, '#4a2a14'); F(12, 20, 1, 1, '#b8b8c0'); break;
+    case 'hands': F(2, 4, 2, 8, arm); F(12, 4, 2, 8, arm); F(2, 2, 2, 2, skin); F(12, 2, 2, 2, skin); break;
+    case 'hit': F(2, 10, 2, 3, arm); F(1, 8, 2, 2, arm); F(0, 7, 2, 1, skin); F(12, 10, 2, 3, arm); F(13, 8, 2, 2, arm); F(15, 7, 2, 1, skin); break;
+    case 'wave': idleL(); F(12, 6, 2, 6, arm); F(12, 4, 2, 2, skin); break;
+    case 'drink': idleL(); F(12, 12, 2, 3, arm); F(11, 10, 2, 2, arm); F(10, 9, 2, 1, skin); F(11, 4, 2, 5, '#3a7a3a'); F(11, 3, 1, 1, '#8a6a3a'); break;
+    case 'cower': F(2, 12, 2, 5, arm); F(12, 12, 2, 5, arm); F(4, 9, 8, 2, arm); F(5, 8, 2, 1, skin); F(9, 8, 2, 1, skin); break;
+    default: idleL(); idleR();
+  }
+  return G;
+}
+function renderSprite(G, flash) {
+  const c2 = document.createElement('canvas'); c2.width = GW + 2; c2.height = GH + 2;
+  const c = c2.getContext('2d');
+  const at = (x, y) => (x >= 0 && x < GW && y >= 0 && y < GH ? G[y][x] : null);
+  for (let y = -1; y <= GH; y++) for (let x = -1; x <= GW; x++) {
+    const col = at(x, y);
+    if (!col) { if (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1)) { c.fillStyle = INK; c.fillRect(x + 1, y + 1, 1, 1); } continue; }
+    const f = !at(x + 1, y) ? 0.72 : !at(x - 1, y) ? 1.18 : !at(x, y - 1) ? 1.1 : 1;
+    c.fillStyle = flash ? '#ffffff' : f === 1 ? col : shade(col, f);
+    c.fillRect(x + 1, y + 1, 1, 1);
+  }
+  return c2;
+}
+const spriteCache = new Map();
+function getSprite(spec, flash = false) {
+  const key = JSON.stringify(spec) + flash;
+  let s = spriteCache.get(key);
+  if (!s) { s = renderSprite(buildGrid(spec), flash); spriteCache.set(key, s); }
+  return s;
+}
+function blit(img, x, y, sc, shear = 0) {
+  const cw = GW + 2, ch = GH + 2;
+  if (!shear) { g.drawImage(img, x, y, cw * sc, ch * sc); return; }
+  for (let r = 0; r < ch; r++) {
+    const off = Math.round(shear * (ch - 1 - r) / (ch - 1)) * sc; // top leans, feet stay planted
+    g.drawImage(img, 0, r, cw, 1, x + off, y + r * sc, cw * sc, sc);
   }
 }
-function tinyText(str, x, y, col) {
-  g.fillStyle = col;
-  let cx = x;
-  for (const ch of str) { const gl = GLYPH[ch]; gl.forEach((row, r) => [...row].forEach((b, i) => { if (b === '1') g.fillRect(cx + i, y + r, 1, 1); })); cx += gl[0].length + 1; }
+
+// =====================================================================
+//  PIXEL ART HELPERS (320x180 world)
+// =====================================================================
+function R(x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+function dither(x, y, w, h, c) { g.fillStyle = c; for (let j = y; j < y + h; j++) for (let i = x + (j & 1); i < x + w; i += 2) g.fillRect(i, j, 1, 1); }
+function disc(cx, cy, r, c) { for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy)); R(cx - w, cy + dy, w * 2 + 1, 1, c); } }
+function ring(cx, cy, ro, ri, c) {
+  for (let dy = -ro; dy <= ro; dy++) {
+    const wo = Math.floor(Math.sqrt(ro * ro - dy * dy)), wi = Math.abs(dy) < ri ? Math.floor(Math.sqrt(ri * ri - dy * dy)) : -1;
+    if (wi < 0) R(cx - wo, cy + dy, wo * 2 + 1, 1, c);
+    else { R(cx - wo, cy + dy, wo - wi, 1, c); R(cx + wi + 1, cy + dy, wo - wi, 1, c); }
+  }
 }
+function line(x0, y0, x1, y1, c) { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1; for (let i = 0; i <= n; i++) R(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1, c); }
+function planksH(x, y, w, h, c1, c2, step = 5) {
+  R(x, y, w, h, c1);
+  for (let j = y + step - 1; j < y + h; j += step) R(x, j, w, 1, c2);
+  for (let j = y, k = 0; j < y + h; j += step, k++) for (let i = x + ((k * 13) % 23); i < x + w; i += 23) R(i, j, 1, step - 1, c2);
+}
+function bricks(x, y, w, h, c1, c2) {
+  R(x, y, w, h, c1);
+  for (let j = y + 5, k = 0; j < y + h; j += 6, k++) { R(x, j, w, 1, c2); for (let i = x + (k % 2) * 6; i < x + w; i += 12) R(i, j - 5, 1, 5, c2); }
+}
+function tinyW(s) { let w = 0; for (const ch of s) w += (GLYPH[ch] ? GLYPH[ch][0].length : 2) + 1; return w - 1; }
+function signText(s, cx, y, c, sc = 1) {
+  g.fillStyle = c; let x = Math.round(cx - tinyW(s) * sc / 2);
+  for (const ch of s) {
+    const gl = GLYPH[ch]; if (!gl) { x += 3 * sc; continue; }
+    gl.forEach((row, r) => [...row].forEach((b, i) => { if (b === '1') g.fillRect(x + i * sc, y + r * sc, sc, sc); }));
+    x += (gl[0].length + 1) * sc;
+  }
+}
+const SKY_DUSK = ['#c4503a', '#e0733f', '#f29a52', '#fbc672'];
+const SKY_DAY = ['#5f9ad6', '#82b4e2', '#abcfee', '#eedcb0'];
+const SKY_NOON = ['#4a86d0', '#68a2e2', '#94c4f0', '#f4e6bc'];
+function sky(c) {
+  for (let i = 0; i < 4; i++) {
+    R(0, i * 25, LW, 25, c[i]);
+    if (i) { g.fillStyle = c[i - 1]; for (let x = 0; x < LW; x += 2) { g.fillRect(x, i * 25, 1, 1); g.fillRect(x + 1, i * 25 + 2, 1, 1); } }
+  }
+}
+function mesas(c1 = '#a4513b', c2 = '#c06a4a') {
+  dither(60, 90, 200, 10, c1);
+  R(0, 80, 70, 20, c1); R(8, 72, 38, 8, c1); R(8, 72, 38, 2, c2); R(4, 80, 4, 1, c2);
+  R(250, 76, 70, 24, c1); R(266, 66, 34, 10, c1); R(266, 66, 34, 2, c2); R(256, 76, 10, 1, c2);
+}
+function ground(y) { R(0, y, LW, LH - y, '#c4914f'); R(0, y, LW, 2, '#a8763c'); for (const s of SPECKS) if (s.y > y + 2) R(s.x, s.y, 1, 1, s.c); }
 function cactus(x, y) {
   const c = '#4f7a3a';
-  rect(g, x, y, 3, 14, c); rect(g, x - 3, y + 5, 3, 2, c); rect(g, x - 3, y + 2, 2, 4, c);
-  rect(g, x + 3, y + 7, 3, 2, c); rect(g, x + 4, y + 4, 2, 4, c); rect(g, x + 1, y + 1, 1, 12, '#6b9a4a');
+  R(x, y, 3, 14, c); R(x - 3, y + 5, 3, 2, c); R(x - 3, y + 2, 2, 4, c);
+  R(x + 3, y + 7, 3, 2, c); R(x + 4, y + 4, 2, 4, c); R(x + 1, y + 1, 1, 12, '#6b9a4a');
 }
-const SKY = ['#c4503a', '#e0733f', '#f29a52', '#fbc672'];
-function drawBackdrop() {
-  for (let i = 0; i < 4; i++) {
-    rect(g, 0, i * 25, LW, 25, SKY[i]);
-    if (i) { g.fillStyle = SKY[i - 1]; for (let x = 0; x < LW; x += 2) { g.fillRect(x, i * 25, 1, 1); g.fillRect(x + 1, i * 25 + 2, 1, 1); } }
-  }
-  g.fillStyle = '#fff1c1';
-  for (let dy = -12; dy <= 12; dy++) { const w = Math.floor(Math.sqrt(144 - dy * dy)); g.fillRect(272 - w, 26 + dy, w * 2, 1); }
-  rect(g, 0, 80, 70, 20, '#a4513b'); rect(g, 8, 72, 38, 8, '#a4513b'); rect(g, 8, 72, 38, 2, '#c06a4a');
-  rect(g, 250, 76, 70, 24, '#a4513b'); rect(g, 266, 66, 34, 10, '#a4513b'); rect(g, 266, 66, 34, 2, '#c06a4a');
-  rect(g, 0, 100, LW, 80, '#c4914f'); rect(g, 0, 100, LW, 2, '#a8763c');
-  for (const s of SPECKS) rect(g, s.x, s.y, 1, 1, s.c);
-  cactus(14, 104); cactus(302, 112);
-  rect(g, 60, 40, 200, 97, '#8a5530');
-  for (let y = 44; y < 137; y += 5) rect(g, 60, y, 200, 1, '#6e4224');
-  rect(g, 56, 40, 208, 3, '#5a3418');
-  for (const k of ['winL', 'winR', 'door']) { const s = SPOTS[k]; rect(g, Lo(s.x), Lo(s.y), Lo(s.w), Lo(s.h), '#1e120a'); }
-  rect(g, 53, 135, 214, 5, '#5a3418'); rect(g, 53, 135, 214, 1, '#9a6236');
-}
-function frame(x, y, w, h, col) { rect(g, x - 2, y - 2, w + 4, 2, col); rect(g, x - 2, y + h, w + 4, 2, col); rect(g, x - 2, y, 2, h, col); rect(g, x + w, y, 2, h, col); }
-function drawCovers() {
-  for (const k in SPOTS) {
-    const s = SPOTS[k], x = Lo(s.x), y = Lo(s.y), w = Lo(s.w), h = Lo(s.h);
-    if (s.cover === 'window') { frame(x, y, w, h, '#4a2a14'); rect(g, x - 4, y + h + 2, w + 8, 2, '#3b2210'); }
-    if (s.cover === 'door') {
-      frame(x, y, w, h, '#4a2a14');
-      const pw = Math.floor(w / 2) - 1;
-      for (const dx of [0, w - pw]) {
-        rect(g, x + dx, y + 16, pw, 20, '#9a6236'); rect(g, x + dx, y + 16, pw, 1, '#c98a4b');
-        for (let yy = y + 20; yy < y + 36; yy += 4) rect(g, x + dx, yy, pw, 1, '#6e4224');
-      }
-    }
-    if (s.cover === 'roof') {
-      rect(g, 133, 20, 54, 22, '#7a4a28'); rect(g, 131, 20, 58, 2, '#5a3418');
-      rect(g, 138, 24, 44, 13, '#3b2210'); rect(g, 139, 25, 42, 11, '#ecd8a4'); tinyText('SALOON', 148, 28, '#8a1f1a');
-    }
-    if (s.cover === 'barrel') {
-      const by = y + 18;
-      rect(g, x, by, w, 23, '#8b5a2b'); rect(g, x, by, w, 2, '#5a3418');
-      rect(g, x, by + 4, w, 2, '#3d3d3d'); rect(g, x, by + 16, w, 2, '#3d3d3d'); rect(g, x + 5, by + 2, 2, 21, '#a8743d');
-    }
-    if (s.cover === 'trough') {
-      const ty = y + 20;
-      rect(g, x - 7, ty, w + 14, 14, '#6b4423'); rect(g, x - 5, ty + 1, w + 10, 2, '#5b9fd0');
-      rect(g, x - 7, ty + 6, w + 14, 1, '#4e2f17'); rect(g, x - 5, ty + 14, 3, 4, '#4e2f17'); rect(g, x + w + 2, ty + 14, 3, 4, '#4e2f17');
-    }
+function winFg(x, y, w, h, cur) {
+  R(x - 2, y - 2, w + 4, 2, '#4a2a14'); R(x - 2, y, 2, h, '#4a2a14'); R(x + w, y, 2, h, '#4a2a14');
+  R(x - 3, y + h, w + 6, 3, '#3b2210'); R(x - 3, y + h, w + 6, 1, '#7a4a28');
+  if (cur) {
+    R(x, y, w, 2, cur); R(x, y, 3, h, cur); R(x + w - 3, y, 3, h, cur);
+    R(x + 1, y + 2, 1, h - 2, shade(cur, 1.25)); R(x + w - 2, y + 2, 1, h - 2, shade(cur, 0.7));
+    R(x, y + 12, 3, 1, '#e2b33c'); R(x + w - 3, y + 12, 3, 1, '#e2b33c');
   }
 }
+function barrel(x, y, w = 22, h = 22) {
+  R(x, y, w, h, '#8b5a2b'); R(x + w - 4, y, 4, h, '#6a4220'); R(x + 2, y, 2, h, '#a8743d');
+  for (const f of [0.3, 0.55, 0.8]) R(x + Math.round(w * f), y, 1, h, '#6e4224');
+  R(x, y + 3, w, 2, '#3d3d3d'); R(x, y + h - 6, w, 2, '#3d3d3d'); R(x + 1, y - 2, w - 2, 2, '#5a3418'); R(x + 1, y - 2, w - 2, 1, '#8a5a30');
+}
+function trough(x, y) {
+  R(x, y, 40, 12, '#6b4423'); R(x + 2, y + 1, 36, 2, '#5b9fd0'); R(x + 4, y + 1, 6, 1, '#a8d4f0');
+  R(x, y + 6, 40, 1, '#4e2f17'); R(x + 2, y + 12, 3, 6, '#4e2f17'); R(x + 35, y + 12, 3, 6, '#4e2f17');
+}
+function wheel(cx, cy, r) {
+  ring(cx, cy, r, r - 2, '#4e2f17');
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; line(cx, cy, cx + Math.round(Math.cos(a) * (r - 2)), cy + Math.round(Math.sin(a) * (r - 2)), '#6e4224'); }
+  disc(cx, cy, 2, '#3b2210');
+}
+function lamp(x, y) { R(x, y, 5, 6, '#2a2a2a'); R(x + 1, y + 1, 3, 4, '#ffd23f'); dither(x - 3, y - 2, 11, 10, 'rgba(255,220,120,.35)'); }
+
+// =====================================================================
+//  SETS (bg = behind actors, fg = cover drawn in front)
+// =====================================================================
+function townBg() {
+  sky(SKY_DAY); disc(296, 20, 9, '#fff6d0'); mesas('#b86a4a', '#d08a60'); ground(118);
+  // bank
+  bricks(2, 34, 74, 92, '#a8a090', '#8a8278'); R(0, 30, 78, 5, '#7a7268'); R(0, 30, 78, 1, '#c8c0b0');
+  R(14, 38, 50, 13, '#5a544a'); signText('BANK', 39, 40, '#e2b33c', 2);
+  for (const wx of [10, 52]) { R(wx, 60, 16, 24, '#2a2a30'); for (let i = wx + 3; i < wx + 16; i += 4) R(i, 60, 1, 24, '#6a6a70'); R(wx - 1, 84, 18, 2, '#7a7268'); }
+  R(30, 92, 18, 34, '#4a3426'); R(32, 94, 14, 30, '#5a4030'); R(42, 108, 2, 3, '#e2b33c'); R(28, 90, 22, 2, '#7a7268');
+  // saloon
+  planksH(82, 40, 96, 86, '#8a5530', '#6e4224'); planksH(98, 16, 64, 24, '#7a4a28', '#5e3820'); R(96, 14, 68, 3, '#5a3418');
+  R(100, 18, 60, 16, '#3b2210'); R(102, 20, 56, 12, '#ecd8a4'); signText('SALOON', 130, 21, '#8a1f1a', 2);
+  for (const wx of [92, 150]) { R(wx, 52, 18, 16, '#2a1810'); winFg(wx, 52, 18, 16, '#a8302b'); }
+  R(80, 72, 100, 3, '#5a3418'); R(80, 68, 100, 1, '#7a4a28'); for (let x = 81; x < 180; x += 4) R(x, 69, 1, 3, '#6e4224');
+  R(118, 94, 24, 32, '#2a1810'); dither(118, 110, 24, 16, '#7a4a28');
+  R(119, 104, 10, 12, '#9a6236'); R(131, 104, 10, 12, '#9a6236'); R(119, 104, 10, 1, '#c98a4b'); R(131, 104, 10, 1, '#c98a4b');
+  // jail
+  bricks(184, 54, 62, 72, '#b58a5a', '#9a7048'); R(182, 50, 66, 4, '#6e4224');
+  R(196, 58, 38, 13, '#ecd8a4'); R(196, 58, 38, 1, '#5a3418'); signText('JAIL', 215, 60, '#2a2a2a', 2);
+  R(190, 78, 14, 14, '#1e120a'); for (let i = 192; i < 204; i += 3) R(i, 78, 1, 14, '#6a6a70');
+  R(214, 88, 20, 38, '#3b2a20'); R(216, 90, 16, 34, '#4e3628'); R(230, 106, 2, 2, '#e2b33c');
+  R(237, 80, 8, 10, '#ecd8a4'); R(239, 82, 4, 3, '#c98a5a'); R(238, 86, 6, 1, '#5a3418');
+  // general store
+  planksH(252, 48, 66, 78, '#5a6a7a', '#4a5868'); R(250, 44, 70, 4, '#3a4652');
+  R(260, 52, 50, 13, '#ecd8a4'); signText('STORE', 285, 54, '#2a4a8a', 2);
+  for (let x = 252; x < 318; x += 8) { R(x, 70, 4, 8, '#c0302b'); R(x + 4, 70, 4, 8, '#f4efe0'); }
+  R(258, 84, 28, 24, '#8ab0c0'); R(258, 84, 28, 1, '#3a4652'); R(260, 86, 6, 1, '#d8eef4');
+  ['#c0302b', '#e2b33c', '#3a7a3a', '#4a7ab8'].forEach((c, i) => R(261 + i * 6, 98, 4, 8, c));
+  R(292, 84, 18, 42, '#3b2a20'); R(294, 86, 14, 38, '#4e3628');
+  // boardwalk + street
+  R(0, 126, 320, 6, '#6e4224'); R(0, 126, 320, 1, '#9a6236'); for (let x = 0; x < 320; x += 10) R(x, 127, 1, 5, '#5a3418');
+  R(80, 96, 2, 30, '#3b2210'); lamp(78, 90);
+  R(0, 150, 320, 1, '#a8763c'); R(0, 166, 320, 1, '#a8763c');
+}
+function saloonExtBg() {
+  sky(SKY_DUSK); disc(276, 30, 12, '#fff1c1'); mesas(); ground(100);
+  cactus(10, 104); cactus(304, 112);
+  planksH(56, 38, 208, 100, '#8a5530', '#6e4224'); R(52, 35, 216, 3, '#5a3418');
+  planksH(108, 14, 104, 24, '#7a4a28', '#5e3820'); R(104, 12, 112, 3, '#5a3418');
+  R(80, 52, 26, 24, '#2a1810'); R(214, 52, 26, 24, '#2a1810');
+  R(52, 80, 216, 4, '#5a3418'); R(52, 84, 216, 1, '#3b2210');
+  for (const x of [58, 104, 212, 258]) { R(x, 84, 3, 52, '#5a3418'); R(x, 84, 1, 52, '#9a6236'); }
+  for (const wx of [72, 216]) {
+    R(wx - 2, 96, 34, 26, '#4a2a14'); R(wx, 98, 30, 22, '#f0b050'); dither(wx, 108, 30, 12, '#c07830');
+    R(wx + 14, 98, 2, 22, '#4a2a14'); R(wx, 108, 30, 2, '#4a2a14');
+  }
+  R(147, 92, 26, 44, '#2a1810'); dither(147, 116, 26, 20, '#7a4a28');
+  R(48, 136, 224, 5, '#5a3418'); R(48, 136, 224, 1, '#9a6236');
+  lamp(178, 96);
+  R(190, 122, 26, 2, '#4e2f17'); R(191, 122, 2, 16, '#4e2f17'); R(213, 122, 2, 16, '#4e2f17');
+  R(114, 98, 14, 18, '#ecd8a4'); R(117, 101, 8, 6, '#c98a5a'); R(116, 100, 10, 2, '#1b1410'); R(116, 110, 10, 1, '#5a3418'); R(116, 113, 8, 1, '#5a3418');
+}
+function saloonExtFg() {
+  winFg(80, 52, 26, 24, '#a8302b'); winFg(214, 52, 26, 24, '#a8302b');
+  R(52, 74, 216, 2, '#7a4a28'); R(52, 74, 216, 1, '#a8703c'); for (let x = 54; x < 268; x += 5) R(x, 76, 2, 4, '#6e4224');
+  for (const dx of [148, 161]) { R(dx, 118, 11, 14, '#9a6236'); R(dx, 118, 11, 1, '#c98a4b'); for (let y = 121; y < 132; y += 3) R(dx, y, 11, 1, '#7a4a28'); }
+  R(116, 16, 88, 20, '#3b2210'); R(118, 18, 84, 16, '#ecd8a4'); signText('SALOON', 160, 21, '#8a1f1a', 2);
+  barrel(28, 116); trough(260, 120);
+}
+function saloonIntBg() {
+  R(0, 0, 320, 46, '#4e161b'); for (let y = 4; y < 46; y += 8) for (let x = (y / 8 % 2) * 4; x < 320; x += 8) R(x, y, 1, 1, '#6a2028');
+  R(0, 52, 320, 56, '#6b1f24'); for (let y = 56; y < 106; y += 8) for (let x = (y / 8 % 2) * 4; x < 320; x += 8) { R(x, y, 2, 1, '#83303a'); R(x + 0, y + 1, 1, 1, '#83303a'); }
+  R(0, 108, 320, 2, '#3b2210'); R(0, 110, 320, 28, '#6e4224');
+  for (let x = 0; x < 320; x += 32) { R(x + 3, 113, 26, 22, '#7a4a28'); R(x + 3, 113, 26, 1, '#9a6236'); }
+  R(0, 138, 320, 42, '#7a4a28'); for (const y of [141, 145, 150, 156, 163, 171]) R(0, y, 320, 1, '#5a3418');
+  for (let k = 0; k < 6; k++) for (let x = (k * 37) % 50; x < 320; x += 50) R(x, [138, 142, 146, 151, 157, 164][k], 1, 4, '#5a3418');
+  R(40, 6, 26, 40, '#24100c'); R(254, 6, 26, 40, '#24100c');
+  R(0, 46, 320, 6, '#5a3418'); R(0, 46, 320, 1, '#9a6236'); R(0, 52, 320, 2, '#2a120c');
+  for (const x of [90, 228]) { R(x, 54, 4, 54, '#5a3418'); R(x, 54, 1, 54, '#9a6236'); }
+  R(104, 58, 112, 46, '#3b2210'); R(128, 60, 64, 22, '#7fa0a8'); R(126, 58, 68, 2, '#b08a3a'); R(126, 82, 68, 2, '#b08a3a');
+  for (let i = 0; i < 10; i++) R(140 + i, 62 + i, 2, 1, '#c8e0e4');
+  R(104, 84, 112, 2, '#5a3418'); R(104, 96, 112, 2, '#5a3418');
+  const BOT = ['#3a7a3a', '#7a4a1a', '#c8d8d0', '#8a2a2a'];
+  for (let x = 106, k = 0; x < 214; x += 5, k++) { if (x > 124 && x < 194) continue; R(x, 78, 3, 6, BOT[k % 4]); R(x + 1, 76, 1, 2, BOT[k % 4]); }
+  for (let x = 106, k = 1; x < 214; x += 5, k++) { R(x, 90, 3, 6, BOT[k % 4]); R(x + 1, 88, 1, 2, BOT[k % 4]); }
+  R(14, 62, 40, 28, '#b08a3a'); R(16, 64, 36, 24, '#6fa8dc'); R(16, 78, 36, 10, '#c4914f');
+  for (let i = 0; i < 10; i++) R(26 - i, 68 + i, i * 2 + 1, 1, '#8a6a5a');
+  R(240, 64, 22, 28, '#ecd8a4'); R(246, 70, 10, 9, '#c98a5a'); R(244, 68, 14, 3, '#1b1410'); R(247, 76, 8, 2, '#1b1410');
+  R(244, 82, 14, 1, '#5a3418'); R(244, 85, 14, 1, '#5a3418'); R(244, 88, 10, 1, '#5a3418');
+  R(160, 0, 1, 8, '#3b2210'); R(146, 8, 30, 2, '#b08a3a');
+  for (let i = 0; i < 5; i++) { R(148 + i * 6, 5, 2, 3, '#f4efe0'); R(148 + i * 6, 3, 2, 2, '#ffd23f'); }
+  dither(140, 0, 42, 14, 'rgba(255,220,120,.25)');
+}
+function saloonIntFg(party) {
+  for (const x of [40, 254]) { R(x - 2, 4, 30, 2, '#4a2a14'); R(x - 2, 6, 2, 40, '#4a2a14'); R(x + 26, 6, 2, 40, '#4a2a14'); }
+  R(0, 34, 320, 2, '#7a4a28'); R(0, 34, 320, 1, '#a8703c'); for (let x = 2; x < 320; x += 5) R(x, 36, 2, 10, '#6e4224');
+  R(94, 106, 132, 4, '#2a1810'); R(94, 106, 132, 1, '#7a4a28'); R(96, 110, 128, 26, '#7a4a28');
+  for (let i = 0; i < 4; i++) { R(100 + i * 31, 113, 25, 19, '#8a5530'); R(100 + i * 31, 113, 25, 1, '#a8703c'); }
+  R(96, 132, 128, 2, '#c9a040'); R(230, 130, 6, 6, '#c9a040'); R(231, 129, 4, 1, '#e2c060');
+  R(12, 104, 52, 34, '#2a1a14'); R(10, 102, 56, 3, '#3b2a20'); R(16, 108, 44, 8, '#3b2a20'); R(16, 118, 44, 4, '#f4efe0');
+  for (let i = 0; i < 14; i++) if (i % 7 !== 2 && i % 7 !== 6) R(17 + i * 3, 118, 2, 2, INK);
+  R(14, 122, 4, 16, '#2a1a14'); R(58, 122, 4, 16, '#2a1a14'); R(32, 98, 12, 4, '#f4efe0'); R(20, 96, 2, 6, '#c9a040'); R(20, 94, 2, 2, '#ffd23f');
+  if (!party) {
+    R(258, 102, 32, 36, '#7a4a28'); R(256, 106, 36, 28, '#7a4a28'); R(258, 102, 32, 1, '#a8703c');
+    R(262, 112, 24, 1, '#6a4020'); R(262, 122, 24, 1, '#6a4020'); R(292, 116, 8, 3, '#5a3418');
+  }
+}
+function partyBg() {
+  saloonIntBg();
+  const COL = ['#c0302b', '#f4efe0', '#4a7ab8', '#e2b33c'];
+  for (let x = 0, k = 0; x < 320; x += 10, k++) {
+    const y = 54 + Math.round(4 * Math.sin(Math.PI * ((x % 160) / 160)));
+    R(x, y, 10, 1, '#3b2210');
+    for (let r = 0; r < 5; r++) R(x + 1 + Math.floor(r / 2), y + 1 + r, 8 - Math.floor(r / 2) * 2, 1, COL[k % 4]);
+  }
+}
+function jailBg() {
+  sky(SKY_DAY); disc(40, 24, 10, '#fff6d0'); mesas('#b86a4a', '#d08a60'); ground(100); cactus(244, 106);
+  bricks(88, 42, 146, 96, '#b58a5a', '#9a7048'); R(84, 38, 154, 5, '#6e4224');
+  for (let i = 0; i < 10; i++) R(92 + i * 14, 43, 4, 3, '#5a3418');
+  R(130, 46, 60, 16, '#5a3418'); R(132, 48, 56, 12, '#ecd8a4'); signText('JAIL', 160, 49, '#2a2a2a', 2);
+  R(104, 68, 24, 22, '#2a1810'); R(192, 68, 24, 22, '#2a1810');
+  R(148, 84, 24, 52, '#1e120a'); for (let x = 150; x < 172; x += 3) R(x, 92, 1, 30, '#3a3a40');
+  R(84, 136, 154, 4, '#6e4224'); R(84, 136, 154, 1, '#9a6236');
+  for (const x of [260, 297]) R(x, 70, 3, 68, '#4e2f17');
+  for (const x of [272, 286]) R(x, 70, 2, 66, '#3e2512');
+  line(262, 80, 297, 110, '#4e2f17'); line(297, 80, 262, 110, '#4e2f17'); line(262, 110, 297, 136, '#4e2f17');
+  R(66, 96, 22, 42, '#7a5a3a'); R(69, 104, 16, 32, '#1e120a');
+  R(236, 124, 18, 2, '#4e2f17'); R(237, 124, 2, 14, '#4e2f17'); R(251, 124, 2, 14, '#4e2f17');
+}
+function jailFg() {
+  for (const wx of [104, 192]) {
+    R(wx - 8, 66, 7, 26, '#5a7a5a'); R(wx + 25, 66, 7, 26, '#5a7a5a');
+    for (let y = 68; y < 90; y += 3) { R(wx - 8, y, 7, 1, '#3e5a3e'); R(wx + 25, y, 7, 1, '#3e5a3e'); }
+    winFg(wx, 68, 24, 22, null);
+  }
+  R(146, 82, 28, 2, '#4a2a14'); R(146, 84, 2, 52, '#4a2a14'); R(172, 84, 2, 52, '#4a2a14'); R(174, 84, 6, 52, '#6e4224'); R(178, 108, 1, 3, '#e2b33c');
+  R(256, 30, 48, 40, '#7a5a3a'); for (let x = 262; x < 304; x += 6) R(x, 30, 1, 40, '#6a4a2a');
+  R(256, 38, 48, 2, '#3d3d3d'); R(256, 58, 48, 2, '#3d3d3d'); R(258, 30, 2, 40, '#9a7a5a'); R(254, 28, 52, 3, '#5a3418'); R(248, 52, 10, 2, '#3d3d3d');
+  R(4, 108, 60, 14, '#8a5530'); R(4, 106, 60, 2, '#a8703c'); R(4, 113, 60, 1, '#6e4224'); R(64, 118, 14, 2, '#5a3418');
+  wheel(18, 128, 10); wheel(50, 128, 10);
+  R(64, 92, 26, 4, '#5a3418'); R(66, 96, 3, 42, '#7a5a3a'); R(85, 96, 3, 42, '#7a5a3a');
+  R(56, 104, 10, 32, '#8a6a4a'); R(58, 108, 4, 5, '#1e120a'); R(59, 108, 3, 4, '#8a6a4a');
+}
+function bankBg() {
+  R(0, 0, 320, 100, '#2f4a3a'); for (let x = 0; x < 320; x += 8) R(x, 6, 2, 94, '#365444');
+  R(0, 0, 320, 6, '#5a3418'); R(0, 6, 320, 1, '#9a6236');
+  R(0, 100, 320, 38, '#5a3418'); for (let x = 0; x < 320; x += 40) { R(x + 4, 104, 32, 30, '#6e4224'); R(x + 4, 104, 32, 1, '#8a5530'); }
+  for (let y = 138, k = 0; y < 180; y += 7, k++) for (let x = (k % 2) * 14 - 14; x < 320; x += 28) { R(x, y, 14, 7, '#d8d0c0'); R(x + 14, y, 14, 7, '#a89f90'); }
+  disc(160, 22, 12, '#5a3418'); disc(160, 22, 10, '#f4efe0');
+  for (const [dx, dy] of [[0, -8], [8, 0], [0, 8], [-8, 0]]) R(160 + dx, 22 + dy, 1, 1, INK);
+  R(160, 15, 1, 8, INK); line(160, 22, 157, 16, INK);
+  R(136, 37, 48, 14, INK); signText('BANK', 160, 39, '#e2b33c', 2);
+  for (const x of [33, 105, 177]) { R(x, 60, 30, 44, '#24382c'); for (let i = 0; i < 4; i++) R(x + 3 + i * 7, 66, 5, 5, '#8a7a3a'); }
+  R(226, 40, 94, 98, '#3a4a44'); disc(272, 90, 28, '#6a6f78'); disc(272, 90, 21, '#15151a');
+  for (let i = 0; i < 4; i++) R(262 + (i % 2) * 6, 104 - Math.floor(i / 2) * 4, 8, 3, '#e2b33c');
+  R(90, 40, 4, 6, '#e2b33c'); R(226, 40, 4, 6, '#e2b33c');
+}
+function bankFg() {
+  R(20, 52, 200, 8, '#5a3418'); R(20, 58, 200, 1, '#c9a040');
+  for (const [x, w] of [[20, 13], [63, 42], [135, 42], [207, 13]]) { R(x, 60, w, 40, '#6e4224'); if (w > 20) R(x + 4, 64, w - 8, 30, '#7a4a28'); }
+  for (const x of [33, 105, 177]) { R(x, 60, 30, 1, '#c9a040'); for (let i = 0; i < 7; i++) R(x + 2 + i * 4, 60, 1, 5, '#c9a040'); }
+  R(18, 98, 204, 4, '#d8d0c0'); R(18, 98, 204, 1, '#f4efe0'); R(18, 102, 204, 36, '#5a3418');
+  for (let x = 24; x < 214; x += 48) { R(x, 106, 40, 26, '#6e4224'); R(x, 106, 40, 1, '#8a5530'); }
+  R(18, 134, 204, 2, '#c9a040');
+  ring(272, 90, 28, 21, '#6a6f78'); ring(272, 90, 26, 23, '#8a8f98');
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; R(272 + Math.round(Math.cos(a) * 25), 90 + Math.round(Math.sin(a) * 25), 2, 2, '#c8ccd4'); }
+  disc(312, 92, 20, '#8a8f98'); disc(312, 92, 14, '#7a7f88'); R(302, 90, 10, 3, '#c8ccd4');
+  R(6, 120, 20, 18, '#a0522d'); R(4, 118, 24, 3, '#b8683a'); R(6, 124, 20, 1, '#8a4020');
+  const leaf = (x0, y0, x1, y1) => { line(x0, y0, x1, y1, '#3a7a3a'); line(x0 + 1, y0, x1 + 1, y1 + 1, '#5a9a4a'); };
+  leaf(16, 118, 2, 96); leaf(16, 118, 8, 86); leaf(16, 118, 16, 82); leaf(16, 118, 24, 88); leaf(16, 118, 30, 100); leaf(16, 118, 4, 108);
+}
+function streetBg() {
+  sky(SKY_NOON); disc(160, 12, 9, '#fffbe0'); mesas('#b86a4a', '#d08a60'); ground(96);
+  for (let y = 96; y < 180; y++) { const hw = 10 + Math.round((y - 96) * 1.7); R(160 - hw, y, hw * 2, 1, '#cfa062'); }
+  line(150, 96, 96, 180, '#a8763c'); line(170, 96, 224, 180, '#a8763c');
+  bricks(0, 30, 70, 76, '#a8a090', '#8a8278'); R(10, 36, 50, 13, '#5a544a'); signText('BANK', 35, 38, '#e2b33c', 2);
+  R(16, 60, 14, 20, '#2a2a30'); R(44, 60, 14, 20, '#2a2a30');
+  planksH(70, 44, 40, 62, '#7a5a3a', '#5a4028'); R(80, 70, 18, 36, '#3b2a20');
+  planksH(250, 40, 70, 66, '#8a5530', '#6e4224'); planksH(262, 22, 50, 18, '#7a4a28', '#5e3820'); R(264, 24, 46, 12, '#ecd8a4'); signText('SALOON', 287, 25, '#8a1f1a', 1);
+  R(270, 80, 20, 26, '#2a1810');
+  bricks(214, 46, 36, 60, '#b58a5a', '#9a7048'); R(220, 70, 14, 36, '#3b2a20');
+  R(0, 104, 110, 4, '#6e4224'); R(214, 104, 106, 4, '#6e4224');
+  R(150, 34, 20, 62, '#9a8a7a'); R(148, 30, 24, 4, '#6a5a4a'); for (let i = 0; i < 8; i++) R(152 + i, 22 + i, 16 - i * 2, 1, '#6a5a4a');
+  disc(160, 46, 6, '#f4efe0'); R(160, 41, 1, 5, INK);
+}
+const SETS = {
+  town: { bg: townBg, fg: () => {}, outdoor: true },
+  saloonExt: { bg: saloonExtBg, fg: saloonExtFg, outdoor: true },
+  saloonInt: { bg: saloonIntBg, fg: () => saloonIntFg(false) },
+  party: { bg: partyBg, fg: () => saloonIntFg(true) },
+  jail: { bg: jailBg, fg: jailFg, outdoor: true },
+  bank: { bg: bankBg, fg: bankFg },
+  street: { bg: streetBg, fg: () => {}, outdoor: true },
+};
+
+// =====================================================================
+//  WORLD RENDER
+// =====================================================================
 function drawTumble() {
   if (tumble.t > 0) return;
-  const x = Math.round(tumble.x), y = 150 - Math.round(Math.abs(Math.sin(tumble.x / 7)) * 6), f = Math.floor(tumble.x / 4) % 2;
-  const c = '#8a6a3a';
-  rect(g, x + 1, y, 4, 1, c); rect(g, x, y + 1, 1, 4, c); rect(g, x + 5, y + 1, 1, 4, c); rect(g, x + 1, y + 5, 4, 1, c);
-  if (f) { rect(g, x + 2, y + 2, 2, 2, c); } else { rect(g, x + 1, y + 2, 1, 1, c); rect(g, x + 4, y + 3, 1, 1, c); }
+  const x = Math.round(tumble.x), y = 150 - Math.round(Math.abs(Math.sin(tumble.x / 7)) * 6), f = Math.floor(tumble.x / 4) % 2, c = '#8a6a3a';
+  R(x + 1, y, 4, 1, c); R(x, y + 1, 1, 4, c); R(x + 5, y + 1, 1, 4, c); R(x + 1, y + 5, 4, 1, c);
+  if (f) R(x + 2, y + 2, 2, 2, c); else { R(x + 1, y + 2, 1, 1, c); R(x + 4, y + 3, 1, 1, c); }
 }
-function drawPerson(a) {
-  const s = SPOTS[a.spot], sc = a.boss ? 4 : 2;
-  const holster = a.boss && state !== 'duelDraw' && !a.dead;
-  let rows = a.type === 'bystander' ? BYSTANDER : holster ? OUTLAW_HOLSTER : OUTLAW_AIM;
-  let x = Math.round(Lo(s.x + s.w / 2) - 13 * sc / 2);
-  let y = Lo(s.y) + (a.boss ? 0 : 2) + Math.round((1 - a.rise) * (Lo(s.h) + 4));
-  let pal = PAL, shear = 0;
+function drawFigure(a) {
+  const s = spots[a.spot], sc = a.boss ? 2 : 1, r = figRect(a);
+  let spec = a.spec, x = r.x, y = r.y, fl = false, shear = 0;
+  const aiming = a.type === 'outlaw' && (!a.boss || state === 'duelDraw');
+  if (a.boss && !a.dead) spec = { ...a.spec, pose: state === 'duelDraw' ? 'aim' : 'holster' };
   if (a.dead) {
     const t = a.deadTime, dir = a.dir || 1;
-    if (a.type === 'outlaw') rows = OUTLAW_HIT;
-    if (t < 0.1) { pal = PAL_FLASH; x += dir * sc; y -= sc; }                       // impact flash + jolt
-    else if (t < 0.3) { y -= sc; x += (Math.floor(t * 30) % 2 ? 1 : -1) * Math.ceil(sc / 2); } // stagger
-    else {                                                                          // topple + slump
-      const k = Math.min(1, (t - 0.3) * 3.5);
-      shear = dir * Math.round(k * 7);
-      y += a.boss ? Math.round(k * 8) * sc : Math.round(Math.pow(t - 0.3, 2) * 260);
-    }
+    if (a.type === 'outlaw') spec = { ...a.spec, pose: 'hit', hat: 'none' };
+    if (t < 0.1) { fl = true; x += dir * sc; y -= sc; }
+    else if (t < 0.3) { y -= sc; x += (Math.floor(t * 30) % 2 ? 1 : -1) * sc; }
+    else { const k = Math.min(1, (t - 0.3) * 3.5); shear = dir * Math.round(k * 8); y += a.boss ? Math.round(k * 10) * sc : Math.round(Math.pow(t - 0.3, 2) * 260); }
   }
+  if (a.boss) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(r.x + 6, r.y + r.h - 2, r.w - 12, 3); }
   g.save();
-  if (!a.boss) { g.beginPath(); g.rect(Lo(s.x) - 8, Lo(s.y) - 10, Lo(s.w) + 16, Lo(s.h) + 10); g.clip(); }
-  sprite(g, rows, pal, x, y, sc, shear);
-  if (a.type === 'outlaw' && !a.dead && !holster && a.age > a.window * 0.6 && Math.floor(a.age * 12) % 2)
-    rect(g, x + 13 * sc, y + 7 * sc, sc * 2, sc * 3, '#fff36b');
+  if (!a.boss) { g.beginPath(); g.rect(s.x, s.y, s.w, s.h); g.clip(); }
+  blit(getSprite(spec, fl), x, y, sc, shear);
+  if (aiming && !a.dead && a.age > a.window * 0.6 && Math.floor(a.age * 12) % 2) R(x + 19 * sc, y + 11 * sc, 2 * sc, 3 * sc, '#fff36b');
   g.restore();
   if (a.type === 'outlaw' && !a.boss && !a.dead && a.rise >= 1) {
-    const p = Math.max(0, 1 - a.age / a.window), bw = Lo(s.w), bx = Lo(s.x);
-    const by = s.y < 30 ? Lo(s.y + s.h) + 2 : Lo(s.y) - 7;
-    rect(g, bx - 1, by - 1, bw + 2, 4, '#1b1410');
-    rect(g, bx, by, Math.round(bw * p), 2, p > 0.4 ? '#ffd23f' : '#ff3b30');
+    const p = Math.max(0, 1 - a.age / a.window), by = s.y - 5 >= 2 ? s.y - 5 : s.y + s.h + 2;
+    R(s.x - 1, by - 1, s.w + 2, 4, INK); R(s.x, by, Math.round(s.w * p), 2, p > 0.4 ? '#ffd23f' : '#ff3b30');
   }
 }
+function drawActors(c, dance) {
+  const speaker = state === 'cut' ? c.lines[cutLine][0] : null, typing = state === 'cut' && Math.floor(cutT * 45) < c.lines[cutLine][1].length;
+  c.actors.forEach((ac, i) => {
+    let y = 124 - 64;
+    if (ac.who === speaker && typing && Math.floor(clock * 8) % 2) y -= 1;
+    if (dance) y -= (Math.floor(clock * 4 + i) % 2) * 2;
+    blit(getSprite({ ...CHARS[ac.who], pose: ac.pose }), Math.round(ac.x - 20), y, 2);
+  });
+}
 function drawWorld() {
-  drawBackdrop();
-  if (!inDuel) actives.forEach(drawPerson);
-  drawCovers();
-  drawTumble();
-  if (inDuel && boss) { g.fillStyle = 'rgba(40,10,0,.45)'; g.fillRect(0, 0, LW, LH); drawPerson(boss); }
+  g.imageSmoothingEnabled = false;
+  let set;
+  if (state === 'cut') {
+    const c = CUTS[cutName]; set = SETS[c.set];
+    set.bg(); set.fg(); drawActors(c, !!c.party); if (c.after) c.after();
+  } else if (state === 'title') { set = SETS.town; set.bg(); }
+  else if (state === 'end') { set = SETS.party; set.bg(); set.fg(); drawActors(CUTS.party, true); }
+  else {
+    set = inDuel ? SETS.street : SETS[LEVELS[levelIdx].set];
+    set.bg(); if (!inDuel) actives.forEach(drawFigure); set.fg();
+    if (inDuel && boss) drawFigure(boss);
+  }
+  if (set.outdoor) drawTumble();
+  for (const c of confetti) R(Math.round(c.x), Math.round(c.y), 2, 1, c.c);
   for (const e of effects) {
     if (e.text) continue;
-    if (e.hat) { sprite(g, Math.floor(e.life * 14) % 2 ? HAT : HAT_FLIP, PAL, Math.round(e.x), Math.round(e.y), e.sc); continue; }
-    if (e.gun) { rect(g, Math.round(e.x), Math.round(e.y), 2 * e.sc, e.sc, '#b8b8c0'); continue; }
-    if (e.dust) rect(g, Lo(e.x), Lo(e.y), 1, 1, '#e8cc98');
-    else rect(g, Lo(e.x) - 1, Lo(e.y) - 1, 2, 2, '#1b1410');
+    if (e.hat) { blit(getSprite(e.spec), Math.round(e.x), Math.round(e.y), e.sc); continue; }
+    if (e.gun) { R(Math.round(e.x), Math.round(e.y), 3 * e.sc, e.sc, '#b8b8c0'); continue; }
+    if (e.dust) R(Math.round(e.x), Math.round(e.y), 1, 1, '#e8cc98');
+    else R(Math.round(e.x) - 1, Math.round(e.y) - 1, 2, 2, INK);
   }
   if (muzzle > 0) {
-    const mx = Lo(mouse.x), my = Lo(mouse.y);
+    const mx = Math.round(mouse.x / P), my = Math.round(mouse.y / P);
     g.fillStyle = 'rgba(255,240,180,.18)'; g.fillRect(0, 0, LW, LH);
-    rect(g, mx - 6, my, 13, 1, '#fff36b'); rect(g, mx, my - 6, 1, 13, '#fff36b');
-    for (const [dx, dy] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) rect(g, mx + dx, my + dy, 1, 1, '#fff36b');
-    rect(g, mx - 2, my - 2, 5, 5, '#ffffff');
+    R(mx - 6, my, 13, 1, '#fff36b'); R(mx, my - 6, 1, 13, '#fff36b');
+    for (const [dx, dy] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) R(mx + dx, my + dy, 1, 1, '#fff36b');
+    R(mx - 2, my - 2, 5, 5, '#ffffff');
   }
 }
 
-// ===================== PIXEL UI (drawn at full res, 3px grid) =====================
-function text(s, x, y, size, col, align = 'left') {
-  ctx.font = size + 'px ' + FONT; ctx.textAlign = align; ctx.textBaseline = 'top';
-  const o = size >= 32 ? 6 : 3;
-  ctx.fillStyle = '#1b1410'; ctx.fillText(s, x + o, y + o);
-  ctx.fillStyle = col; ctx.fillText(s, x, y);
-}
+// =====================================================================
+//  UI (full-res, 3px grid)
+// =====================================================================
+function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+function spriteUI(rows, pal, x, y, sc) { for (let r = 0; r < rows.length; r++) for (let i = 0; i < rows[r].length; i++) { const ch = rows[r][i]; if (ch !== '.') rect(x + i * sc, y + r * sc, sc, sc, pal[ch]); } }
+function ptext(s, x, y, size, col, align = 'left') { ctx.font = size + 'px ' + FONT; ctx.textAlign = align; ctx.textBaseline = 'top'; ctx.fillStyle = col; ctx.fillText(s, x, y); }
+function text(s, x, y, size, col, align = 'left') { ptext(s, x + (size >= 32 ? 6 : 3), y + (size >= 32 ? 6 : 3), size, INK, align); ptext(s, x, y, size, col, align); }
 function panel(x, y, w, h, fill = '#5a3418') {
-  rect(ctx, x, y, w, h, '#1b1410');
-  rect(ctx, x + 3, y + 3, w - 6, h - 6, '#c98a4b');
-  rect(ctx, x + 6, y + 6, w - 12, h - 12, fill);
-  for (let yy = y + 27; yy < y + h - 12; yy += 24) rect(ctx, x + 6, yy, w - 12, 3, 'rgba(0,0,0,.12)');
-  for (const [nx, ny] of [[x + 12, y + 12], [x + w - 18, y + 12], [x + 12, y + h - 18], [x + w - 18, y + h - 18]]) rect(ctx, nx, ny, 6, 6, '#e2b33c');
+  rect(x, y, w, h, INK); rect(x + 3, y + 3, w - 6, h - 6, '#c98a4b'); rect(x + 6, y + 6, w - 12, h - 12, fill);
+  for (let yy = y + 27; yy < y + h - 12; yy += 24) rect(x + 6, yy, w - 12, 3, 'rgba(0,0,0,.12)');
+  for (const [nx, ny] of [[x + 12, y + 12], [x + w - 18, y + 12], [x + 12, y + h - 18], [x + w - 18, y + h - 18]]) rect(nx, ny, 6, 6, '#e2b33c');
 }
-function dim(a) { ctx.fillStyle = `rgba(20,10,5,${a})`; ctx.fillRect(0, 0, W, H); }
-function wrap(s, n) {
-  const out = []; let line = '';
-  for (const w of s.split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = line ? line + ' ' + w : w; }
-  if (line) out.push(line); return out;
-}
+function dim(a) { rect(0, 0, W, H, `rgba(20,10,5,${a})`); }
+function wrap(s, n) { const out = []; let ln = ''; for (const w of s.split(' ')) { if ((ln + ' ' + w).trim().length > n) { out.push(ln); ln = w; } else ln = ln ? ln + ' ' + w : w; } if (ln) out.push(ln); return out; }
 function button(b, label, sub) {
   const hover = inBox(mouse.x, mouse.y, b);
   panel(b.x, b.y, b.w, b.h, hover ? '#9a6236' : '#5a3418');
@@ -413,120 +839,193 @@ function button(b, label, sub) {
   text(sub, b.x + b.w / 2, b.y + 54, 16, '#f3d18b', 'center');
 }
 function drawHUD() {
-  panel(12, 12, 252, 84);
-  text('SCORE', 33, 30, 16, '#f3d18b');
-  text(String(score).padStart(6, '0'), 33, 57, 24, '#ffffff');
+  panel(12, 12, 252, 84); text('SCORE', 33, 30, 16, '#f3d18b'); text(String(score).padStart(6, '0'), 33, 57, 24, '#ffffff');
   const hw = 36 + diff.lives * 27, hx = W - 12 - hw;
   panel(hx, 12, hw, 54);
-  for (let i = 0; i < diff.lives; i++) sprite(ctx, HEART, i < lives ? HEART_PAL : HEART_EMPTY, hx + 18 + i * 27, 30, 3);
-  panel(12, H - 78, 264, 66);
-  text(inDuel ? 'SHOWDOWN' : 'WAVE ' + (waveIdx + 1) + '/' + WAVES.length, 33, H - 60, 16, '#ffffff');
-  text(diff.name.toUpperCase(), 33, H - 36, 16, '#f3d18b');
-  const a = AMMO_BOX;
-  panel(a.x, a.y, a.w, a.h);
-  for (let i = 0; i < 6; i++) sprite(ctx, BULLET, i < ammo ? BULLET_PAL : BULLET_SPENT, a.x + 18 + i * 21, a.y + 21, 3);
-  const blink = Math.floor(clock * 3) % 2;
-  if (ammo === 0) { if (blink) text('RELOAD! [R]', W - 12, a.y - 30, 16, '#ff3b30', 'right'); }
+  for (let i = 0; i < diff.lives; i++) spriteUI(HEART, i < lives ? HEART_PAL : HEART_EMPTY, hx + 18 + i * 27, 30, 3);
+  panel(12, H - 78, 312, 66);
+  text(inDuel ? 'SHOWDOWN' : LEVELS[levelIdx].name, 33, H - 60, 16, '#ffffff');
+  text(inDuel ? 'HIGH NOON' : 'LEVEL ' + (levelIdx + 1) + ' OF ' + LEVELS.length, 33, H - 36, 16, '#f3d18b');
+  const a = AMMO_BOX; panel(a.x, a.y, a.w, a.h);
+  for (let i = 0; i < 6; i++) spriteUI(BULLET, i < ammo ? BULLET_PAL : BULLET_SPENT, a.x + 18 + i * 21, a.y + 21, 3);
+  if (ammo === 0) { if (Math.floor(clock * 3) % 2) text('RELOAD! [R]', W - 12, a.y - 30, 16, '#ff3b30', 'right'); }
   else if (ammo <= 2) text('LOW AMMO [R]', W - 12, a.y - 30, 16, '#ffd23f', 'right');
 }
 function drawCrosshair() {
   const x = Math.round(mouse.x / P) * P, y = Math.round(mouse.y / P) * P;
   const arms = [[x - 24, y - 3, 15, 6], [x + 9, y - 3, 15, 6], [x - 3, y - 24, 6, 15], [x - 3, y + 9, 6, 15]];
-  for (const [ax, ay, aw, ah] of arms) rect(ctx, ax - 3, ay - 3, aw + 6, ah + 6, '#1b1410');
-  for (const [ax, ay, aw, ah] of arms) rect(ctx, ax, ay, aw, ah, '#ffffff');
-  rect(ctx, x - 3, y - 3, 6, 6, '#ff3b30');
+  for (const [ax, ay, aw, ah] of arms) rect(ax - 3, ay - 3, aw + 6, ah + 6, INK);
+  for (const [ax, ay, aw, ah] of arms) rect(ax, ay, aw, ah, '#ffffff');
+  rect(x - 3, y - 3, 6, 6, '#ff3b30');
+}
+function tombstone(lines) {
+  const x = 288, y = 170, w = 384, h = 216;
+  rect(x - 3, y - 3, w + 6, h + 6, INK); rect(x + 21, y - 27, w - 42, 27, INK); rect(x + 51, y - 42, w - 102, 18, INK);
+  rect(x, y, w, h, '#9a9aa4'); rect(x + 24, y - 24, w - 48, 27, '#9a9aa4'); rect(x + 54, y - 39, w - 108, 18, '#9a9aa4');
+  rect(x + w - 15, y, 15, h, '#7a7a84'); rect(x, y, 6, h, '#b4b4bc'); rect(x + 60, y + 150, 3, 12, '#6a6a74'); rect(x + 63, y + 162, 3, 9, '#6a6a74');
+  ptext('R.I.P.', W / 2, y - 24, 24, '#4a4a54', 'center');
+  lines.forEach((l, i) => ptext(l, W / 2, y + 24 + i * 32, 16, '#2a2a34', 'center'));
+  rect(x - 36, y + h - 6, w + 72, 15, '#4f7a3a'); for (let i = x - 30; i < x + w + 30; i += 12) rect(i, y + h - 12, 3, 6, '#6b9a4a');
+}
+function scroll(lines) {
+  const x = 288, y = 140, w = 384, h = 246;
+  rect(x - 3, y - 3, w + 6, h + 6, INK); rect(x, y, w, h, '#ecd8a4');
+  rect(x - 9, y - 6, w + 18, 15, '#c8a46a'); rect(x - 9, y + h - 9, w + 18, 15, '#c8a46a');
+  rect(x + w - 12, y, 12, h, '#d8c08a');
+  ptext('COWBOY WISDOM', W / 2, y + 30, 16, '#8a1f1a', 'center'); rect(x + 60, y + 58, w - 120, 3, '#c8a46a');
+  lines.forEach((l, i) => ptext(l, W / 2, y + 84 + i * 34, 16, '#3b2210', 'center'));
 }
 function stats(y) {
   const acc = shots ? Math.round(hits / shots * 100) : 0;
   text('SCORE ' + score + '   ACC ' + acc + '%', W / 2, y, 16, '#ffffff', 'center');
   text(newBest ? 'NEW BEST!' : 'BEST ' + best, W / 2, y + 30, 16, '#ffd23f', 'center');
 }
+// ---------------- TALKING PORTRAITS (24x24 grid, drawn at 6x) ----------------
+function portrait(who, X, Y, talking) {
+  const c = CHARS[who], S = 6, px = (x, y, w, h, col) => rect(X + x * S, Y + y * S, w * S, h * S, col);
+  const shade = col => { const n = parseInt(col.slice(1), 16), f = v => Math.max(0, Math.round(v * 0.72)); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(v => f(v).toString(16).padStart(2, '0')).join(''); };
+  const sk = c.skin, skD = shade(sk), hairC = c.hair, bc = c.beardC || hairC;
+  px(0, 0, 24, 24, who === 'buchanan' ? '#4a1410' : '#2e4a5a');
+  for (let y = 0; y < 24; y += 4) px(0, y, 24, 1, 'rgba(255,255,255,.05)');
+  // shoulders + clothes
+  px(2, 19, 20, 5, c.coat || c.shirt);
+  if (c.vest) { px(3, 19, 5, 5, c.vest); px(16, 19, 5, 5, c.vest); }
+  if (c.coat) { px(9, 19, 6, 5, c.shirt); }
+  px(10, 16, 4, 4, skD);
+  if (who === 'buchanan') { px(7, 17, 10, 2, '#8a1a14'); px(11, 19, 2, 2, '#8a1a14'); }
+  if (who === 'banker' || who === 'pete') { px(10, 18, 4, 2, who === 'pete' ? '#c0302b' : '#1b1b1b'); px(11, 18, 2, 2, '#000'); }
+  if (c.badge) { px(15, 20, 3, 3, '#e2b33c'); px(16, 19, 1, 1, '#e2b33c'); px(16, 21, 1, 1, '#fff0a8'); }
+  // head
+  px(5, 10, 1, 3, sk); px(18, 10, 1, 3, sk);
+  px(6, 6, 12, 10, sk); px(7, 16, 10, 1, sk); px(17, 7, 1, 9, skD); px(8, 16, 8, 1, skD);
+  px(6, 6, 1, 5, hairC); px(17, 6, 1, 5, hairC);
+  // eyes (blink every few seconds; Dewey's are droopy)
+  const blink = (clock % 3.4) < 0.14;
+  px(8, 9, 3, 1, hairC); px(13, 9, 3, 1, hairC);
+  if (blink) { px(8, 11, 2, 1, INK); px(14, 11, 2, 1, INK); }
+  else {
+    px(8, 10, 2, 2, '#ffffff'); px(9, 10, 1, 2, INK); px(14, 10, 2, 2, '#ffffff'); px(15, 10, 1, 2, INK);
+    if (who === 'dewey') { px(8, 10, 2, 1, skD); px(14, 10, 2, 1, skD); }
+  }
+  if (c.monocle) { px(13, 9, 4, 1, '#e2b33c'); px(13, 12, 4, 1, '#e2b33c'); px(13, 10, 1, 2, '#e2b33c'); px(16, 10, 1, 2, '#e2b33c'); px(16, 13, 1, 5, '#e2b33c'); }
+  if (c.scar) { px(7, 11, 1, 4, '#9a3a2a'); px(6, 12, 1, 1, '#9a3a2a'); px(8, 13, 1, 1, '#9a3a2a'); }
+  // nose (red for the drinkers)
+  px(11, 11, 2, 3, c.nose || (who === 'dewey' ? '#d0453a' : skD));
+  // facial hair
+  if (c.face === 'beard') { px(6, 13, 12, 4, bc); px(7, 17, 10, 1, bc); px(8, 18, 8, 1, bc); }
+  if (c.face === 'stubble') for (const [x, y] of [[7, 14], [9, 16], [8, 15], [16, 14], [15, 15], [14, 16], [11, 17], [13, 16]]) px(x, y, 1, 1, shade(skD));
+  // mouth flaps while the line is typing
+  const open = talking && Math.floor(clock * 9) % 2;
+  if (open) { px(10, 14, 4, 2, '#3a0f0a'); px(11, 15, 2, 1, '#c0302b'); } else px(10, 15, 4, 1, '#5a2a1a');
+  if (c.face === 'mustache') { px(9, 13, 6, 1, bc); px(8, 14, 1, 1, bc); px(15, 14, 1, 1, bc); if (who === 'sheriff') { px(8, 13, 8, 2, bc); px(7, 14, 1, 2, bc); px(16, 14, 1, 2, bc); } }
+  // hats
+  const hc = c.hatC || hairC;
+  if (c.hat === 'cowboy') {
+    px(1, 5, 22, 1, hc); px(2, 4, 20, 1, hc); px(7, 0, 10, 4, hc); px(11, 0, 2, 1, who === 'buchanan' ? '#4a1410' : '#2e4a5a');
+    px(7, 3, 10, 1, who === 'sheriff' ? '#5a3418' : INK); px(8, 1, 1, 2, 'rgba(255,255,255,.25)');
+    if (who === 'dewey') { px(16, 0, 1, 2, '#2e4a5a'); px(4, 4, 2, 1, shade(hc)); }
+  } else if (c.hat === 'bowler') {
+    px(4, 5, 16, 1, hc); px(7, 2, 10, 3, hc); px(8, 1, 8, 1, hc); px(7, 4, 10, 1, '#5a2a2a'); px(9, 2, 1, 2, 'rgba(255,255,255,.2)');
+  }
+  // frame
+  rect(X - 6, Y - 6, 24 * S + 12, 6, '#c98a4b'); rect(X - 6, Y + 24 * S, 24 * S + 12, 6, '#c98a4b');
+  rect(X - 6, Y, 6, 24 * S, '#c98a4b'); rect(X + 24 * S, Y, 6, 24 * S, '#c98a4b');
+}
+function drawDialog() {
+  const c = CUTS[cutName], [who, txt] = c.lines[cutLine], sp = SPEAK[who], n = Math.floor(cutT * 45);
+  panel(24, 352, 912, 176, '#2a1810');
+  if (sp.name) { const nw = sp.name.length * 16 + 48; panel(48, 334, nw, 48, '#5a3418'); text(sp.name, 72, 350, 16, sp.color); }
+  let left = n; const hasFace = !!CHARS[who], tx = hasFace ? 210 : 54, cols = hasFace ? 42 : 52;
+  if (hasFace) portrait(who, 48, 370, n < txt.length);
+  wrap(txt, cols).forEach((l, i) => { text(l.slice(0, Math.max(0, left)), tx, 402 + i * 30, 16, sp.color); left -= l.length + 1; });
+  if (n >= txt.length && Math.floor(clock * 3) % 2) { rect(894, 496, 18, 6, '#ffd23f'); rect(897, 502, 12, 6, '#ffd23f'); rect(900, 508, 6, 6, '#ffd23f'); }
+  text('ESC: SKIP', W - 24, 20, 16, '#f3d18b', 'right');
+}
 function draw() {
   drawWorld();
   ctx.imageSmoothingEnabled = false;
-  rect(ctx, 0, 0, W, H, '#1b1410');
-  const sx = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 12) * P : 0;
-  const sy = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 12) * P : 0;
+  rect(0, 0, W, H, INK);
+  const sx = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 12) * P : 0, sy = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 12) * P : 0;
   ctx.drawImage(buf, sx, sy, W, H);
-  if (flash > 0) { ctx.fillStyle = lastHurt === 'bystander' ? `rgba(60,90,200,${flash * 0.45})` : `rgba(200,0,0,${flash * 0.45})`; ctx.fillRect(0, 0, W, H); }
-  for (const e of effects) if (e.text) { ctx.globalAlpha = Math.min(1, e.life * 3); text(e.text, e.x, e.y - (1 - e.life) * 40, 16, '#ffd23f', 'center'); ctx.globalAlpha = 1; }
-
+  if (flash > 0) rect(0, 0, W, H, lastHurt === 'bystander' ? `rgba(60,90,200,${flash * 0.45})` : `rgba(200,0,0,${flash * 0.45})`);
+  for (const e of effects) if (e.text) { ctx.globalAlpha = Math.min(1, e.life * 3); text(e.text, e.x * P, (e.y - (1 - e.life) * 14) * P, 16, '#ffd23f', 'center'); ctx.globalAlpha = 1; }
   const blink = Math.floor(clock * 2.5) % 2;
-  if (state !== 'title') drawHUD();
+  const playing = ['intro', 'play', 'clear', 'duelWait', 'duelDraw', 'duelWon'].includes(state);
+  if (playing) drawHUD();
+
   if (state === 'title') {
     dim(0.55);
-    text('HIGH NOON', W / 2, 54, 48, '#f4efe0', 'center');
-    text('SALOON', W / 2, 114, 48, '#ffd23f', 'center');
-    panel(W / 2 - 312, 186, 624, 120);
-    text('SHOOT OUTLAWS BEFORE THEY FIRE', W / 2, 210, 16, '#ffffff', 'center');
-    text("DON'T SHOOT HANDS-UP FOLKS", W / 2, 240, 16, '#7fb2ff', 'center');
-    text('RELOAD: R / RIGHT-CLICK / TAP AMMO', W / 2, 270, 16, '#f3d18b', 'center');
-    if (blink) text('CHOOSE YOUR BADGE', W / 2, 326, 16, '#ffffff', 'center');
-    button(BTN.deputy, 'DEPUTY', '5 LIVES - EASY');
-    button(BTN.gunslinger, 'GUNSLINGER', '3 LIVES - HARD');
-    if (best) text('BEST ' + best, W / 2, 465, 16, '#ffd23f', 'center');
+    text('HIGH NOON', W / 2, 36, 48, '#ffd23f', 'center');
+    text('THE LEGEND OF MAD DOG BUCHANAN', W / 2, 104, 16, '#f4efe0', 'center');
+    panel(W / 2 - 330, 140, 660, 132);
+    text('SHOOT OUTLAWS BEFORE THEY FIRE', W / 2, 164, 16, '#ffffff', 'center');
+    text("DON'T SHOOT HANDS-UP FOLKS", W / 2, 196, 16, '#7fb2ff', 'center');
+    text('R=RELOAD  P=PAUSE  ESC=SKIP SCENE', W / 2, 228, 16, '#f3d18b', 'center');
+    if (blink) text('CHOOSE YOUR BADGE', W / 2, 296, 16, '#ffffff', 'center');
+    button(BTN.deputy, 'DEPUTY', '5 LIVES - EASY'); button(BTN.gunslinger, 'GUNSLINGER', '3 LIVES - HARD');
+    if (best) text('BEST ' + best, W / 2, 450, 16, '#ffd23f', 'center');
   }
+  if (state === 'cut') drawDialog();
   if (state === 'intro') {
-    dim(0.35); panel(W / 2 - 270, 180, 540, 150);
-    if (inDuel) {
-      text('SHOWDOWN', W / 2, 204, 32, '#ff3b30', 'center');
-      text('WAIT FOR THE BELL...', W / 2, 256, 16, '#ffffff', 'center');
-      text('THEN DRAW!', W / 2, 288, 16, '#ffd23f', 'center');
-    } else {
-      text('WAVE ' + (waveIdx + 1), W / 2, 204, 32, '#ffd23f', 'center');
-      text(WAVES[waveIdx].name.toUpperCase(), W / 2, 256, 16, '#ffffff', 'center');
-      text('GET READY...', W / 2, 288, 16, '#f3d18b', 'center');
-    }
+    dim(0.35); panel(W / 2 - 300, 170, 600, 160);
+    if (inDuel) { text('SHOWDOWN', W / 2, 194, 32, '#ff3b30', 'center'); text('WAIT FOR THE BELL...', W / 2, 246, 16, '#ffffff', 'center'); text('THEN DRAW!', W / 2, 280, 16, '#ffd23f', 'center'); }
+    else { text('LEVEL ' + (levelIdx + 1), W / 2, 194, 32, '#ffd23f', 'center'); text(LEVELS[levelIdx].name, W / 2, 246, 16, '#ffffff', 'center'); text('GET READY...', W / 2, 280, 16, '#f3d18b', 'center'); }
   }
+  if (state === 'clear') { dim(0.3); panel(W / 2 - 270, 190, 540, 120); text('LEVEL CLEAR!', W / 2, 214, 32, '#ffd23f', 'center'); text('SCORE ' + score, W / 2, 266, 16, '#ffffff', 'center'); }
   if (state === 'duelWait') text('STEADY...', W / 2, 110, 24, '#f4efe0', 'center');
   if (state === 'duelDraw') text('DRAW!', W / 2, 96, 64, Math.floor(clock * 10) % 2 ? '#ff3b30' : '#ffd23f', 'center');
-  if (state === 'hurt') {
-    const h = HURT[lastHurt];
-    dim(0.55); panel(W / 2 - 336, 140, 672, 260);
-    text(h.title, W / 2, 166, 32, h.color, 'center');
-    text(h.reason, W / 2, 218, 16, '#ffffff', 'center');
-    text('THE DOC SAYS:', W / 2, 254, 16, '#f3d18b', 'center');
-    wrap(quip, 36).forEach((l, i) => text(l, W / 2, 282 + i * 24, 16, '#f4efe0', 'center'));
-    text(inDuel ? 'RETRYING SHOWDOWN...' : 'RESTARTING WAVE...', W / 2, 360, 16, '#a88a6a', 'center');
+  if (state === 'hurt' || state === 'over') {
+    const h = HURT[lastHurt], over = state === 'over';
+    dim(over ? 0.72 : 0.62);
+    text(over ? 'GAME OVER' : h.title, W / 2, 36, over ? 40 : 32, h.color, 'center');
+    text(h.reason, W / 2, 96, 16, '#ffffff', 'center');
+    lastHurt === 'bystander' ? scroll(epitaph) : tombstone(epitaph);
+    if (over) { stats(414); if (blink) text('CLICK: RETRY LEVEL   ESC: TITLE', W / 2, 482, 16, '#f3d18b', 'center'); }
+    else { text(inDuel ? 'BACK TO THE SHOWDOWN...' : 'BACK TO THE START OF THE LEVEL...', W / 2, 434, 16, '#f3d18b', 'center'); if (blink) text('CLICK TO CONTINUE', W / 2, 470, 16, '#a88a6a', 'center'); }
   }
-  if (state === 'over') {
-    dim(0.65); panel(W / 2 - 336, 100, 672, 340);
-    text('GAME OVER', W / 2, 126, 40, '#ff3b30', 'center');
-    text(HURT[lastHurt].reason, W / 2, 190, 16, '#ffffff', 'center');
-    wrap(quip, 36).forEach((l, i) => text(l, W / 2, 224 + i * 24, 16, '#f4efe0', 'center'));
-    stats(300);
-    if (blink) text('CLICK TO CONTINUE', W / 2, 396, 16, '#f3d18b', 'center');
+  if (state === 'end') {
+    panel(W / 2 - 336, 18, 672, 168);
+    text('THE END', W / 2, 36, 40, '#ffd23f', 'center');
+    text('DUSTWATER GULCH IS SAFE.', W / 2, 92, 16, '#ffffff', 'center');
+    stats(122);
+    if (blink) text('CLICK FOR TITLE', W / 2, 498, 16, '#f3d18b', 'center');
   }
-  if (state === 'win') {
-    dim(0.55); panel(W / 2 - 336, 100, 672, 340);
-    text('TOWN SAVED!', W / 2, 126, 40, '#ffd23f', 'center');
-    text('THE GANG IS FINISHED.', W / 2, 190, 16, '#ffffff', 'center');
-    text(diff.name.toUpperCase() + ' DIFFICULTY', W / 2, 224, 16, '#f3d18b', 'center');
-    stats(282);
-    if (blink) text('CLICK TO CONTINUE', W / 2, 396, 16, '#f3d18b', 'center');
-  }
+  if (paused) { dim(0.6); panel(W / 2 - 240, 190, 480, 130); text('PAUSED', W / 2, 214, 40, '#ffd23f', 'center'); text('PRESS P TO RESUME', W / 2, 274, 16, '#ffffff', 'center'); }
   drawCrosshair();
 }
 
-// ===================== INPUT =====================
+// =====================================================================
+//  INPUT
+// =====================================================================
+const canPause = () => ['intro', 'play', 'duelWait', 'duelDraw'].includes(state);
 function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
 cv.addEventListener('pointermove', e => { mouse = toGame(e); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   audio(); mouse = toGame(e);
-  if (state === 'title') {
-    if (inBox(mouse.x, mouse.y, BTN.deputy)) startGame('deputy');
-    else if (inBox(mouse.x, mouse.y, BTN.gunslinger)) startGame('gunslinger');
-    return;
-  }
-  if (state === 'over' || state === 'win') { state = 'title'; inDuel = false; actives = []; return; }
+  if (paused) { paused = false; return; }
+  if (state === 'title') { if (inBox(mouse.x, mouse.y, BTN.deputy)) startGame('deputy'); else if (inBox(mouse.x, mouse.y, BTN.gunslinger)) startGame('gunslinger'); return; }
+  if (state === 'cut') { advanceCut(); return; }
+  if (state === 'end') { toTitle(); return; }
+  if (state === 'over') { lives = diff.lives; score = 0; levelStartScore = 0; retry(); return; }
+  if (state === 'hurt') { if (timer < 3.7) retry(); return; }
   if (!['play', 'duelWait', 'duelDraw'].includes(state)) return;
   if (e.button === 2 || inBox(mouse.x, mouse.y, AMMO_BOX)) { reload(); return; }
   shoot(mouse.x, mouse.y);
 });
-window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && ['play', 'duelWait', 'duelDraw'].includes(state)) reload(); });
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'p' && canPause()) { paused = !paused; return; }
+  if (paused) return;
+  if ((k === ' ' || k === 'enter') && state === 'cut') { e.preventDefault(); advanceCut(); }
+  if (k === 'escape') { if (state === 'cut') nextStep(); else if (state === 'over') toTitle(); }
+  if (k === 'r' && ['play', 'duelWait', 'duelDraw'].includes(state)) reload();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && canPause()) paused = true; });
 
-// ===================== LOOP =====================
+// =====================================================================
+//  LOOP
+// =====================================================================
 let last = performance.now();
 function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
