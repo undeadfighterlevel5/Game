@@ -134,7 +134,7 @@ const CUTS = {
     ['dewey', "AND THEY'RE FIXIN' TO CLEAN OUT THE BANK BY SUNDOWN."],
     ['dewey', "ME? I'D HELP, BUT MY MAMA SAID NEVER GET SHOT ON A TUESDAY. *HIC*"],
     ['dewey', 'START AT THE SALOON. AND MIND THE FOLKS WITH THEIR HANDS UP!'],
-    ['dewey', "OH, AND IF YOU SHOOT A FELLA'S HAT OUT THE AIR... THAT'S JUST STYLE."],
+    ['dewey', "OH, AND IF YOU KEEP A FELLA'S HAT IN THE AIR... THAT'S JUST STYLE."],
   ]},
   doors: { set: 'saloonExt', actors: [], lines: [
     ['narr', 'THE LAST OF THEM SCRAMBLE INSIDE. YOU KICK OPEN THE BATWING DOORS...'],
@@ -215,10 +215,7 @@ const DIFFICULTY = {
 // ---------------- UI SPRITES ----------------
 const HEART = ['.RR.RR.', 'RWRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...'];
 const HEART_PAL = { R: '#e0362c', W: '#ffd0c8' }, HEART_EMPTY = { R: '#3b2a24', W: '#3b2a24' };
-const BULLET = ['.C.', 'CCC', 'CCC', 'YYY', 'YWY', 'YYY', 'YYY', 'DDD'];
-const BULLET_PAL = { C: '#c8743a', Y: '#e2b33c', W: '#fff0a8', D: '#9a7420' };
-const BULLET_SPENT = { C: '#3b2a24', Y: '#3b2a24', W: '#3b2a24', D: '#3b2a24' };
-const HAT_ICON = ['...KKKK...', '..KKKKKK..', '..RRRRRR..', 'KKKKKKKKKK'];
+const HAT_ICON = ['....KKKKKK....', '...KKKKKKKK...', '...KKKKKKKK...', '...RRRRRRRR...', 'K.KKKKKKKKKK.K', '.KKKKKKKKKKKK.'];
 const HAT_PAL = { K: '#c8a46a', R: '#8a1f1a' };
 const GLYPH = {
   A: ['010','101','111','101','101'], B: ['110','101','110','101','110'], E: ['111','100','110','100','111'],
@@ -242,10 +239,11 @@ let shots = 0, hits = 0, timer = 0, lastHurt = 'shot', epitaph = [], clock = 0;
 let flash = 0, muzzle = 0, shake = 0, mouse = { x: W / 2, y: H / 2 }, effects = [], confetti = [];
 let duelT = 0, drawAt = 0, boss = null, newBest = false;
 let cutName = 'intro', cutLine = 0, cutT = 0, musicT = 0, musicI = 0;
-let props = { set: '', list: [] }, hatsShot = 0, hatsTotal = 0, hatPulse = 0, targets = 0, flyT = 6, clearInfo = null;
+let props = { set: '', list: [] }, hatsShot = 0, hatPulse = 0, targets = 0, flyT = 6, clearInfo = null;
+let cylAng = 0; // revolver cylinder rotation (degrees), animates toward the next live round
 let best = +(localStorage.getItem('hns_best') || 0);
 const BTN = { deputy: { x: 168, y: 336, w: 288, h: 84 }, gunslinger: { x: 504, y: 336, w: 288, h: 84 } };
-const AMMO_BOX = { x: W - 162, y: H - 78, w: 150, h: 66 };
+const AMMO_BOX = { x: W - 150, y: H - 150, w: 138, h: 138 };
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const SPECKS = Array.from({ length: 170 }, () => ({ x: Math.floor(rnd() * LW), y: 90 + Math.floor(rnd() * 90), c: rnd() < 0.5 ? '#a8763c' : '#d6a865' }));
 let tumble = { x: -20, t: 5 };
@@ -277,7 +275,7 @@ const sfx = {
   ricochet: () => tone('sine', 2200 + Math.random() * 800, 500, 0.35, 0.12),
   hit:      () => tone('triangle', 180, 60, 0.15, 0.4),
   empty:    () => tone('square', 160, 140, 0.05, 0.08),
-  reload:   () => { for (let i = 0; i < 3; i++) setTimeout(() => tone('square', 900, 700, 0.04, 0.06), i * 70); },
+  reload:   () => { for (let i = 0; i < 6; i++) setTimeout(() => tone('square', 1000 - i * 40, 800 - i * 40, 0.03, 0.05), i * 45); },
   hurt:     () => { noise(0.5, 0.9, 1200); tone('sawtooth', 200, 50, 0.5, 0.2); },
   oops:     () => { tone('triangle', 700, 180, 0.5, 0.25); setTimeout(() => tone('triangle', 400, 120, 0.5, 0.2), 180); },
   bell:     () => { tone('sine', 880, 870, 1.2, 0.3); tone('sine', 1320, 1300, 0.8, 0.12); },
@@ -288,7 +286,7 @@ const sfx = {
   thud:     () => { noise(0.2, 0.5, 800); tone('triangle', 160, 80, 0.12, 0.2); },
   ping:     () => { tone('square', 1400, 1300, 0.07, 0.05); tone('sine', 2800, 2700, 0.25, 0.05); },
   coin:     () => [1320, 1760, 2093].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.08, 0.05), i * 60)),
-  hat:      () => [880, 1320].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.07, 0.06), i * 60)),
+  hat:      n => { const b = 660 * Math.pow(1.06, Math.min(n, 24)); [b, b * 1.5].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.07, 0.06), i * 60)); },
 };
 const TUNE = [392, 523, 523, 587, 659, 659, 587, 523, 440, 523, 587, 523, 392, 0, 494, 0];
 function partyMusic(dt) {
@@ -319,18 +317,17 @@ function startLevel(i) {
   levelIdx = i; const L = LEVELS[i]; spots = L.spots; levelStartScore = score; lives = diff.lives; // refill each level
   events = L.events.map(([t, spot, ty, win], n) => ({ t, spot, type: ty === 'o' ? 'outlaw' : 'bystander', window: win,
     spec: ty === 'o' ? { ...OUTLAWS[(n + i) % OUTLAWS.length], pose: 'aim' } : { ...BYSTANDERS[(n + i) % BYSTANDERS.length], pose: 'hands' } }));
-  hatsTotal = events.filter(e => e.type === 'outlaw').length;
   resetLevel();
 }
 function resetLevel() { // dying sends you back to the START of the level (bonus targets reset too)
-  inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; score = levelStartScore; effects = [];
+  inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; cylAng = 0; score = levelStartScore; effects = [];
   props = makeProps(LEVELS[levelIdx]); hatsShot = 0; targets = 0; flyT = 5 + Math.random() * 4;
   state = 'intro'; timer = 1.8;
 }
 function startDuel() { spots = DUEL_SPOTS; levelStartScore = score; lives = diff.lives; resetDuel(); }
 function resetDuel() {
-  inDuel = true; actives = []; ammo = 6; score = levelStartScore; effects = [];
-  props = { set: 'street', list: [] }; hatsShot = 0; hatsTotal = 1; targets = 0;
+  inDuel = true; actives = []; ammo = 6; cylAng = 0; score = levelStartScore; effects = [];
+  props = { set: 'street', list: [] }; hatsShot = 0; targets = 0;
   boss = { spot: 'street', type: 'outlaw', spec: { ...CHARS.buchanan, pose: 'holster' }, age: 0, window: 99, rise: 1, dead: false, deadTime: 0, boss: true };
   state = 'intro'; timer = 1.8;
 }
@@ -343,12 +340,12 @@ function advanceCut() {
   if (cutLine >= CUTS[cutName].lines.length) nextStep();
 }
 function enterClear() {
-  const perfect = hatsTotal > 0 && hatsShot === hatsTotal;
-  const hatBonus = hatsShot * 100 + (perfect ? 1000 : 0);
+  const hatBonus = hatsShot * 100;
   score += hatBonus;
-  clearInfo = { hatsShot, hatsTotal, hatBonus, perfect, targets };
-  state = 'clear'; timer = 3.4; sfx.clear(); if (perfect) setTimeout(sfx.coin, 400);
+  clearInfo = { hatsShot, hatBonus, targets };
+  state = 'clear'; timer = 3.4; sfx.clear(); if (hatsShot >= 10) setTimeout(sfx.coin, 400);
 }
+const hatsAloft = () => effects.some(e => e.hat);
 
 // =====================================================================
 //  BONUS TARGETS (props, flying hats, tumbleweeds, tossed bottles)
@@ -413,11 +410,18 @@ function tossBottle() { // some varmint tosses a bottle across the scene
   props.list.push(mkProp({ k: 'bottle', x: left ? -4 : LW + 1, y: 70 + Math.random() * 40, c: pick(BOTTLE_C), layer: 'bg' },
     { air: true, vx: (left ? 1 : -1) * (80 + Math.random() * 50), vy: -110 - Math.random() * 50, pts: 300 }));
 }
-function hatBox(e) { const sc = e.sc; return { x: e.x + sc - 1, y: e.y - 2, w: 16 * sc + 2, h: 9 * sc + 2 }; }
-function shootHat(e) {
-  e.live = false; e.shot = true; e.flashT = 0.12; e.vy = -140 * e.sc; e.vx = -e.vx * 0.6; e.life = Math.max(e.life, 1.2);
-  hatsShot++; hits++; hatPulse = 0.6; score += e.pts; sfx.hat();
-  popText(e.x + 8 * e.sc, e.y - 4, 'HAT TRICK! +' + e.pts);
+// ---- HATS: every hit pops the hat back up. Keep it in the air as long as you can.
+function hatBox(e) { const sc = e.sc; return { x: e.x + sc - 2, y: e.y - 3, w: 16 * sc + 4, h: 9 * sc + 4 }; }
+function shootHat(e, x) {
+  e.combo++; e.flashT = 0.12;
+  const pts = e.base * Math.min(e.combo, 10); // value climbs each juggle, tops out at x10
+  e.vy = -150;                                                  // pop back up
+  const centre = e.x + 8 * e.sc;
+  e.vx = (centre - x) * 6 + (centre < LW / 2 ? 20 : -20);     // hit the edge = it kicks the other way, drifts toward centre
+  e.vx = Math.max(-70, Math.min(70, e.vx));
+  hatsShot++; hits++; hatPulse = 0.6; score += pts; sfx.hat(e.combo);
+  popText(centre, e.y - 4, (e.combo > 1 ? 'HAT x' + e.combo + '  +' : 'HAT TRICK! +') + pts);
+  burst(centre, e.y + 3, 4, ['#f4efe0', '#c8a46a'], 30);
 }
 function tumblePos() { return { x: Math.round(tumble.x), y: 150 - Math.round(Math.abs(Math.sin(tumble.x / 7)) * 6) }; }
 function hitTumble(x, y) {
@@ -432,7 +436,7 @@ function hitTumble(x, y) {
 // =====================================================================
 //  GAMEPLAY
 // =====================================================================
-function reload() { if (ammo < 6) { ammo = 6; sfx.reload(); } }
+function reload() { if (ammo < 6) { ammo = 6; cylAng -= 360; sfx.reload(); } } // cylinder spins on reload
 function hurt(kind) {
   lives--; lastHurt = kind; flash = 1; shake = 0.4; actives = [];
   epitaph = kind === 'bystander' ? pick(WISDOM) : pick(EPITAPHS[kind]);
@@ -453,8 +457,7 @@ function shoot(sx, sy) {
   const x = sx / P, y = sy / P;
   if (inDuel && state === 'duelWait') return hurt('early');
   // 1) hats in the air
-  const hat = effects.find(e => e.hat && e.live && inBox(x, y, hatBox(e)));
-  if (hat) return shootHat(hat);
+  for (let i = effects.length - 1; i >= 0; i--) { const e = effects[i]; if (e.hat && inBox(x, y, hatBox(e))) return shootHat(e, x); }
   if (inDuel) {
     if (state === 'duelDraw' && inBox(x, y, spots.street)) {
       hits++; boss.dead = true; boss.deadTime = 0; knockOff(boss); sfx.hit();
@@ -486,8 +489,8 @@ function shoot(sx, sy) {
 function knockOff(a) {
   const r = figRect(a), sc = a.boss ? 2 : 1;
   a.dir = Math.random() < 0.5 ? -1 : 1;
-  effects.push({ phys: true, hat: true, live: true, pts: a.boss ? 500 : 250, spec: { ...a.spec, hatOnly: true }, sc, x: r.x, y: r.y,
-    vx: a.dir * (25 + Math.random() * 20) * sc, vy: -110 * sc, life: 1.6, flashT: 0 });
+  effects.push({ phys: true, hat: true, combo: 0, base: a.boss ? 500 : 250, spec: { ...a.spec, hatOnly: true }, sc, x: r.x, y: r.y,
+    vx: a.dir * (25 + Math.random() * 20) * sc, vy: -110 * sc, life: 999, flashT: 0 });
   effects.push({ phys: true, gun: true, sc, x: r.x + 16 * sc, y: r.y + 13 * sc, vx: -a.dir * 20, vy: -50, life: 0.9 });
 }
 function miss(x, y) {
@@ -499,12 +502,20 @@ function miss(x, y) {
 function update(dt) {
   clock += dt;
   if (paused) return;
+  cylAng += ((-(6 - ammo) * 60) - cylAng) * Math.min(1, dt * 14);
   flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt); shake = Math.max(0, shake - dt); hatPulse = Math.max(0, hatPulse - dt);
   effects.forEach(e => {
     e.life -= dt;
     if (e.flashT) e.flashT -= dt;
     if (e.dust) { e.x += e.vx * dt; e.y += e.vy * dt; }
-    if (e.phys) { e.vy += 320 * dt; e.x += e.vx * dt; e.y += e.vy * dt; }
+    if (e.phys) { e.vy += (e.hat ? 260 : 320) * dt; e.x += e.vx * dt; e.y += e.vy * dt; }
+    if (e.hat) { // hats bounce off the screen edges and only die when they hit the floor
+      const hw = 18 * e.sc;
+      if (e.x < -e.sc) { e.x = -e.sc; e.vx = Math.abs(e.vx); }
+      if (e.x > LW - hw) { e.x = LW - hw; e.vx = -Math.abs(e.vx); }
+      if (e.y < 0) { e.y = 0; e.vy = Math.max(0, e.vy); }
+      if (e.y > LH + 2) e.life = 0;
+    }
   });
   effects = effects.filter(e => e.life > 0);
   if (boss && boss.dead) boss.deadTime += dt;
@@ -530,7 +541,7 @@ function update(dt) {
   if (state === 'hurt') { timer -= dt; if (timer <= 0) retry(); return; }
   if (state === 'duelWait') { duelT += dt; if (duelT >= drawAt) { state = 'duelDraw'; duelT = 0; sfx.bell(); } return; }
   if (state === 'duelDraw') { duelT += dt; boss.age = duelT; boss.window = diff.draw; if (duelT >= diff.draw) hurt('duel'); return; }
-  if (state === 'duelWon') { timer -= dt; if (timer <= 0) nextStep(); return; }
+  if (state === 'duelWon') { timer -= dt; if (timer <= 0 && !hatsAloft()) nextStep(); return; } // Buchanan's hat can be juggled too
   if (state !== 'play') return;
 
   time += dt;
@@ -552,7 +563,7 @@ function update(dt) {
   }
   actives = actives.filter(a => !a.gone && !(a.dead && a.deadTime > 0.9));
   // level ends once everyone's done AND nothing shootable is still in the air
-  if (nextEvent >= events.length && actives.length === 0 && !effects.some(e => e.hat && e.live) && !props.list.some(p => p.alive && p.air)) enterClear();
+  if (nextEvent >= events.length && actives.length === 0 && !hatsAloft() && !props.list.some(p => p.alive && p.air)) enterClear();
 }
 
 // =====================================================================
@@ -1004,8 +1015,9 @@ function drawWorld() {
     if (e.text) continue;
     if (e.shard) { R(Math.round(e.x), Math.round(e.y), 1, 1, e.c); continue; }
     if (e.hat) {
-      blit(getSprite(e.spec, e.flashT > 0), Math.round(e.x), Math.round(e.y), e.sc);
-      if (e.shot) R(Math.round(e.x + 8 * e.sc), Math.round(e.y + 2 * e.sc), e.sc, e.sc, '#f4efe0');
+      const hx = Math.round(e.x), hy = Math.round(e.y);
+      blit(getSprite(e.spec, e.flashT > 0), hx, hy, e.sc);
+      for (let k = 0; k < Math.min(e.combo, 4); k++) R(hx + (5 + k * 3) * e.sc, hy + (1 + (k % 2)) * e.sc, e.sc, e.sc, '#f4efe0'); // bullet holes pile up
       continue;
     }
     if (e.gun) { R(Math.round(e.x), Math.round(e.y), 3 * e.sc, e.sc, '#b8b8c0'); continue; }
@@ -1026,6 +1038,10 @@ function drawWorld() {
 // =====================================================================
 function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 function spriteUI(rows, pal, x, y, sc) { for (let r = 0; r < rows.length; r++) for (let i = 0; i < rows[r].length; i++) { const ch = rows[r][i]; if (ch !== '.') rect(x + i * sc, y + r * sc, sc, sc, pal[ch]); } }
+function uiDisc(cx, cy, r, col) { // chunky pixel circle on the 3px UI grid
+  cx = Math.round(cx / P) * P; cy = Math.round(cy / P) * P;
+  for (let dy = -r; dy <= r; dy += P) { const w = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)) / P) * P; if (w > 0) rect(cx - w, cy + dy, w * 2, P, col); }
+}
 function ptext(s, x, y, size, col, align = 'left') { ctx.font = size + 'px ' + FONT; ctx.textAlign = align; ctx.textBaseline = 'top'; ctx.fillStyle = col; ctx.fillText(s, x, y); }
 function text(s, x, y, size, col, align = 'left') { ptext(s, x + (size >= 32 ? 6 : 3), y + (size >= 32 ? 6 : 3), size, INK, align); ptext(s, x, y, size, col, align); }
 function panel(x, y, w, h, fill = '#5a3418') {
@@ -1041,23 +1057,50 @@ function button(b, label, sub) {
   text(label, b.x + b.w / 2, b.y + 18, 24, hover ? '#ffd23f' : '#ffffff', 'center');
   text(sub, b.x + b.w / 2, b.y + 54, 16, '#f3d18b', 'center');
 }
+// ---- Revolver cylinder ammo display: 6 chambers, brass = loaded, black = spent.
+//      The cylinder rotates one chamber per shot and spins on reload. Click it to reload.
+function drawCylinder() {
+  const a = AMMO_BOX, cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+  uiDisc(cx + 6, cy + 6, 66, 'rgba(0,0,0,.35)');      // drop shadow
+  uiDisc(cx, cy, 66, INK);
+  uiDisc(cx, cy, 63, '#5e636c');
+  uiDisc(cx, cy, 57, '#868b94');
+  uiDisc(cx - 6, cy - 6, 45, '#9a9fa8');               // top-left sheen
+  uiDisc(cx, cy, 42, '#868b94');
+  const rad = cylAng * Math.PI / 180;
+  for (let i = 0; i < 6; i++) {                        // flutes between chambers
+    const an = rad + (i * 60 + 30 - 90) * Math.PI / 180;
+    uiDisc(cx + Math.cos(an) * 54, cy + Math.sin(an) * 54, 9, '#4a4f58');
+  }
+  for (let i = 0; i < 6; i++) {
+    const an = rad + (i * 60 - 90) * Math.PI / 180, px = cx + Math.cos(an) * 33, py = cy + Math.sin(an) * 33;
+    const loaded = i >= 6 - ammo;
+    uiDisc(px, py, 15, INK);
+    if (loaded) {
+      uiDisc(px, py, 12, '#c8743a'); uiDisc(px, py, 9, '#e2b33c'); uiDisc(px, py, 4, '#9a7420');
+      rect(Math.round((px - 6) / P) * P, Math.round((py - 6) / P) * P, 3, 3, '#fff0a8');
+    } else { uiDisc(px, py, 12, '#15151a'); uiDisc(px + 3, py + 3, 6, '#25252c'); }
+  }
+  uiDisc(cx, cy, 12, INK); uiDisc(cx, cy, 9, '#4a4f58'); uiDisc(cx, cy, 3, '#2a2a30');
+  rect(cx - 6, a.y - 9, 12, 12, '#e2b33c'); rect(cx - 3, a.y + 3, 6, 6, '#e2b33c'); // firing-pin marker
+}
 function drawHUD() {
   panel(12, 12, 252, 84); text('SCORE', 33, 30, 16, '#f3d18b'); text(String(score).padStart(6, '0'), 33, 57, 24, '#ffffff');
+  // hat counter: hat symbol with the running count underneath
+  const hb = hatPulse > 0;
+  panel(270, 12, 114, 84, hb ? '#9a6236' : '#5a3418');
+  spriteUI(HAT_ICON, HAT_PAL, 327 - 21, 24 - (hb ? 3 : 0), 3);
+  text(String(hatsShot), 327, 57, 24, hb ? '#ffd23f' : '#ffffff', 'center');
   const hw = 36 + diff.lives * 27, hx = W - 12 - hw;
   panel(hx, 12, hw, 54);
   for (let i = 0; i < diff.lives; i++) spriteUI(HEART, i < lives ? HEART_PAL : HEART_EMPTY, hx + 18 + i * 27, 30, 3);
   panel(12, H - 78, 312, 66);
   text(inDuel ? 'SHOWDOWN' : LEVELS[levelIdx].name, 33, H - 60, 16, '#ffffff');
   text(inDuel ? 'HIGH NOON' : 'LEVEL ' + (levelIdx + 1) + ' OF ' + LEVELS.length, 33, H - 36, 16, '#f3d18b');
-  if (!inDuel) { // hat tracker
-    panel(336, H - 78, 200, 66, hatPulse > 0 ? '#9a6236' : '#5a3418');
-    spriteUI(HAT_ICON, HAT_PAL, 356, H - 52, 3);
-    text(hatsShot + '/' + hatsTotal, 400, H - 57, 24, hatPulse > 0 ? '#ffd23f' : '#ffffff');
-  }
-  const a = AMMO_BOX; panel(a.x, a.y, a.w, a.h);
-  for (let i = 0; i < 6; i++) spriteUI(BULLET, i < ammo ? BULLET_PAL : BULLET_SPENT, a.x + 18 + i * 21, a.y + 21, 3);
-  if (ammo === 0) { if (Math.floor(clock * 3) % 2) text('RELOAD! [R]', W - 12, a.y - 30, 16, '#ff3b30', 'right'); }
-  else if (ammo <= 2) text('LOW AMMO [R]', W - 12, a.y - 30, 16, '#ffd23f', 'right');
+  drawCylinder();
+  const a = AMMO_BOX;
+  if (ammo === 0) { if (Math.floor(clock * 3) % 2) text('RELOAD! [R]', W - 12, a.y - 36, 16, '#ff3b30', 'right'); }
+  else if (ammo <= 2) text('LOW AMMO [R]', W - 12, a.y - 36, 16, '#ffd23f', 'right');
 }
 function drawCrosshair() {
   const x = Math.round(mouse.x / P) * P, y = Math.round(mouse.y / P) * P;
@@ -1160,7 +1203,7 @@ function draw() {
     panel(W / 2 - 330, 140, 660, 132);
     text('SHOOT OUTLAWS BEFORE THEY FIRE', W / 2, 160, 16, '#ffffff', 'center');
     text("DON'T SHOOT HANDS-UP FOLKS", W / 2, 188, 16, '#7fb2ff', 'center');
-    text('BONUS: SHOOT HATS & BOTTLES!', W / 2, 216, 16, '#ffd23f', 'center');
+    text('BONUS: JUGGLE HATS, BUST BOTTLES!', W / 2, 216, 16, '#ffd23f', 'center');
     text('R=RELOAD  P=PAUSE  ESC=SKIP', W / 2, 244, 16, '#f3d18b', 'center');
     if (blink) text('CHOOSE YOUR BADGE', W / 2, 296, 16, '#ffffff', 'center');
     button(BTN.deputy, 'DEPUTY', '5 LIVES - EASY'); button(BTN.gunslinger, 'GUNSLINGER', '3 LIVES - HARD');
@@ -1174,12 +1217,11 @@ function draw() {
   }
   if (state === 'clear' && clearInfo) {
     const ci = clearInfo;
-    dim(0.35); panel(W / 2 - 310, 130, 620, 250);
-    text('LEVEL CLEAR!', W / 2, 154, 32, '#ffd23f', 'center');
-    text('HATS SHOT ' + ci.hatsShot + '/' + ci.hatsTotal + '   +' + ci.hatBonus, W / 2, 214, 16, '#ffffff', 'center');
-    if (ci.perfect && blink) text('PERFECT HAT TRICK! +1000', W / 2, 246, 16, '#ffd23f', 'center');
-    text('TARGETS SHOT ' + ci.targets, W / 2, 278, 16, '#f3d18b', 'center');
-    text('SCORE ' + score, W / 2, 322, 24, '#ffffff', 'center');
+    dim(0.35); panel(W / 2 - 310, 140, 620, 220);
+    text('LEVEL CLEAR!', W / 2, 164, 32, '#ffd23f', 'center');
+    text('HATS SHOT ' + ci.hatsShot + '   +' + ci.hatBonus, W / 2, 224, 16, '#ffffff', 'center');
+    text('TARGETS SHOT ' + ci.targets, W / 2, 256, 16, '#f3d18b', 'center');
+    text('SCORE ' + score, W / 2, 302, 24, '#ffffff', 'center');
   }
   if (state === 'duelWait') text('STEADY...', W / 2, 110, 24, '#f4efe0', 'center');
   if (state === 'duelDraw') text('DRAW!', W / 2, 96, 64, Math.floor(clock * 10) % 2 ? '#ff3b30' : '#ffd23f', 'center');
