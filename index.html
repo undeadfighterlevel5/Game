@@ -43,34 +43,74 @@ const CHARS = {
   buchanan: { hat: 'cowboy', hatC: '#151515', skin: '#c98a5a', hair: '#1b1410', shirt: '#6b1a1a', coat: '#2a2420', pants: '#2a2a2a', boots: '#151515', face: 'beard', beardC: '#1b1410', scar: true },
 };
 
+// ---------------- BONUS TARGETS ----------------
+// fx: glass/pottery/fire/coins/ink = shatter, juggle = pops up and can be re-shot for double points,
+//     spin = hit once and it spins, fall = drops and crashes
+const PROP_KINDS = {
+  bottle:     { w: 3,  h: 8,  pts: 50,  fx: 'glass' },
+  glass:      { w: 3,  h: 4,  pts: 75,  fx: 'glass' },
+  jug:        { w: 7,  h: 8,  pts: 100, fx: 'pottery' },
+  can:        { w: 4,  h: 5,  pts: 50,  fx: 'juggle' },
+  spittoon:   { w: 8,  h: 7,  pts: 75,  fx: 'juggle' },
+  lantern:    { w: 5,  h: 7,  pts: 150, fx: 'fire' },
+  moneybag:   { w: 8,  h: 8,  pts: 200, fx: 'coins' },
+  inkwell:    { w: 4,  h: 4,  pts: 100, fx: 'ink' },
+  clock:      { w: 25, h: 25, pts: 250, fx: 'spin' },
+  vane:       { w: 9,  h: 12, pts: 200, fx: 'spin' },
+  chandelier: { w: 30, h: 10, pts: 300, fx: 'fall' },
+};
+const BOTTLE_C = ['#3a7a3a', '#7a4a1a', '#8a2a2a', '#c8d8d0', '#4a6a8a'];
+function shelfBottles() {
+  const out = [];
+  [106, 113, 120, 197, 204, 211].forEach((x, i) => out.push({ k: 'bottle', x, y: 76, c: BOTTLE_C[i % 5], layer: 'bg' }));
+  for (let x = 106, i = 2; x <= 212; x += 7, i++) out.push({ k: 'bottle', x, y: 88, c: BOTTLE_C[i % 5], layer: 'bg' });
+  return out;
+}
+
 // ---------------- LEVELS ----------------
 // Spots are in the 320x180 pixel world. a = anchor: 'top' (window) or 'bottom' (behind cover).
 // Events: [seconds, spot, 'o'utlaw or 'b'ystander, seconds before an outlaw fires]
+// Props: bonus targets. layer 'bg' = behind outlaws, 'fg' = in front.
 const LEVELS = [
   { name: 'THE SALOON', set: 'saloonExt',
     spots: { winL: { x: 80, y: 52, w: 26, h: 24, a: 'top' }, winR: { x: 214, y: 52, w: 26, h: 24, a: 'top' },
              door: { x: 147, y: 92, w: 26, h: 44, a: 'bottom' }, roof: { x: 148, y: 0, w: 24, h: 30, a: 'bottom' },
              barrel: { x: 26, y: 90, w: 26, h: 36, a: 'bottom' }, trough: { x: 266, y: 90, w: 28, h: 36, a: 'bottom' } },
     events: [[1.0,'winL','o',1.9],[2.6,'barrel','o',1.8],[4.0,'door','b',1.8],[5.2,'trough','o',1.6],[6.4,'winR','o',1.6],[7.8,'roof','o',1.5],
-             [9.0,'winL','b',1.6],[9.4,'door','o',1.4],[11.0,'barrel','o',1.3],[11.2,'trough','o',1.3],[12.8,'roof','o',1.2]] },
+             [9.0,'winL','b',1.6],[9.4,'door','o',1.4],[11.0,'barrel','o',1.3],[11.2,'trough','o',1.3],[12.8,'roof','o',1.2]],
+    props: [ { k: 'jug', x: 34, y: 106, layer: 'fg' }, { k: 'can', x: 293, y: 115, layer: 'fg' },
+             { k: 'bottle', x: 195, y: 114, c: '#3a7a3a', layer: 'bg' }, { k: 'bottle', x: 201, y: 114, c: '#7a4a1a', layer: 'bg' },
+             { k: 'bottle', x: 207, y: 114, c: '#8a2a2a', layer: 'bg' }, { k: 'lantern', x: 178, y: 95, layer: 'bg' },
+             { k: 'vane', x: 196, y: 2, layer: 'bg' } ] },
   { name: 'INSIDE THE SALOON', set: 'saloonInt',
     spots: { balL: { x: 40, y: 6, w: 26, h: 40, a: 'bottom' }, balR: { x: 254, y: 6, w: 26, h: 40, a: 'bottom' },
              bar: { x: 146, y: 76, w: 28, h: 44, a: 'bottom' }, piano: { x: 24, y: 76, w: 28, h: 44, a: 'bottom' },
              table: { x: 260, y: 74, w: 28, h: 44, a: 'bottom' } },
     events: [[1.0,'bar','o',1.7],[2.4,'balL','o',1.6],[3.6,'piano','b',1.8],[4.4,'balR','o',1.5],[5.8,'table','o',1.4],[7.0,'bar','b',1.6],
-             [7.6,'piano','o',1.3],[9.0,'balL','o',1.2],[9.2,'balR','o',1.2],[10.8,'table','o',1.1],[11.6,'bar','o',1.0]] },
+             [7.6,'piano','o',1.3],[9.0,'balL','o',1.2],[9.2,'balR','o',1.2],[10.8,'table','o',1.1],[11.6,'bar','o',1.0]],
+    props: [ ...shelfBottles(),
+             { k: 'glass', x: 108, y: 102, layer: 'fg' }, { k: 'glass', x: 124, y: 102, layer: 'fg' },
+             { k: 'glass', x: 190, y: 102, layer: 'fg' }, { k: 'glass', x: 208, y: 102, layer: 'fg' },
+             { k: 'chandelier', x: 146, y: 0, layer: 'bg', floor: 128 }, { k: 'spittoon', x: 229, y: 129, layer: 'fg' } ] },
   { name: 'THE JAIL', set: 'jail',
     spots: { winL: { x: 104, y: 68, w: 24, h: 22, a: 'top' }, winR: { x: 192, y: 68, w: 24, h: 22, a: 'top' },
              door: { x: 148, y: 86, w: 24, h: 50, a: 'bottom' }, tower: { x: 268, y: 6, w: 24, h: 32, a: 'bottom' },
              wagon: { x: 20, y: 74, w: 28, h: 44, a: 'bottom' }, outhouse: { x: 69, y: 104, w: 16, h: 32, a: 'bottom' } },
     events: [[1.0,'door','o',1.6],[2.4,'outhouse','b',1.8],[3.4,'tower','o',1.5],[4.6,'wagon','o',1.4],[5.8,'winL','o',1.3],[6.0,'winR','o',1.3],
-             [7.4,'outhouse','o',1.2],[8.6,'door','b',1.5],[9.0,'tower','o',1.1],[10.4,'wagon','o',1.1],[10.6,'winL','o',1.0],[12.0,'door','o',0.95]] },
+             [7.4,'outhouse','o',1.2],[8.6,'door','b',1.5],[9.0,'tower','o',1.1],[10.4,'wagon','o',1.1],[10.6,'winL','o',1.0],[12.0,'door','o',0.95]],
+    props: [ { k: 'can', x: 8, y: 101, layer: 'fg' }, { k: 'can', x: 14, y: 101, layer: 'fg' }, { k: 'can', x: 52, y: 101, layer: 'fg' },
+             { k: 'jug', x: 73, y: 84, layer: 'fg' }, { k: 'lantern', x: 182, y: 92, layer: 'fg' },
+             { k: 'bottle', x: 92, y: 128, c: '#3a7a3a', layer: 'bg' }, { k: 'bottle', x: 98, y: 128, c: '#7a4a1a', layer: 'bg' },
+             { k: 'bottle', x: 242, y: 116, c: '#8a2a2a', layer: 'bg' } ] },
   { name: 'THE BANK', set: 'bank',
     spots: { tel1: { x: 33, y: 60, w: 30, h: 44, a: 'bottom' }, tel2: { x: 105, y: 60, w: 30, h: 44, a: 'bottom' },
              tel3: { x: 177, y: 60, w: 30, h: 44, a: 'bottom' }, vault: { x: 258, y: 72, w: 28, h: 36, a: 'bottom' },
              plant: { x: 2, y: 78, w: 28, h: 44, a: 'bottom' } },
     events: [[1.0,'tel2','o',1.4],[2.2,'tel1','b',1.6],[2.6,'tel3','o',1.3],[4.0,'vault','o',1.2],[5.2,'plant','o',1.2],[6.4,'tel2','b',1.5],
-             [6.8,'tel1','o',1.1],[8.0,'vault','o',1.0],[8.2,'tel3','o',1.0],[9.6,'plant','o',0.95],[10.8,'tel2','o',0.9],[11.0,'vault','o',0.9]] },
+             [6.8,'tel1','o',1.1],[8.0,'vault','o',1.0],[8.2,'tel3','o',1.0],[9.6,'plant','o',0.95],[10.8,'tel2','o',0.9],[11.0,'vault','o',0.9]],
+    props: [ { k: 'clock', x: 148, y: 10, layer: 'bg' }, { k: 'lantern', x: 88, y: 38, layer: 'bg' }, { k: 'lantern', x: 224, y: 38, layer: 'bg' },
+             { k: 'moneybag', x: 76, y: 90, layer: 'fg' }, { k: 'moneybag', x: 150, y: 90, layer: 'fg' }, { k: 'moneybag', x: 212, y: 90, layer: 'fg' },
+             { k: 'inkwell', x: 94, y: 94, layer: 'fg' } ] },
 ];
 const DUEL_SPOTS = { street: { x: 140, y: 92, w: 40, h: 72, a: 'bottom' } };
 
@@ -78,8 +118,8 @@ const DUEL_SPOTS = { street: { x: 140, y: 92, w: 40, h: 72, a: 'bottom' } };
 const SPEAK = {
   narr:     { name: '',                 color: '#f4efe0' },
   dewey:    { name: 'DEPUTY DEWEY',     color: '#ffd23f' },
-  pete:     { name: 'PIANO PETE',     color: '#ff9a6b' },
-  sheriff:  { name: 'SHERIFF TATE', color: '#9fd8ff' },
+  pete:     { name: 'PIANO PETE',       color: '#ff9a6b' },
+  sheriff:  { name: 'SHERIFF TATE',     color: '#9fd8ff' },
   banker:   { name: 'MR. PENNYWORTH',   color: '#a8f0a0' },
   buchanan: { name: 'MAD DOG BUCHANAN', color: '#ff6b5b' },
 };
@@ -94,6 +134,7 @@ const CUTS = {
     ['dewey', "AND THEY'RE FIXIN' TO CLEAN OUT THE BANK BY SUNDOWN."],
     ['dewey', "ME? I'D HELP, BUT MY MAMA SAID NEVER GET SHOT ON A TUESDAY. *HIC*"],
     ['dewey', 'START AT THE SALOON. AND MIND THE FOLKS WITH THEIR HANDS UP!'],
+    ['dewey', "OH, AND IF YOU SHOOT A FELLA'S HAT OUT THE AIR... THAT'S JUST STYLE."],
   ]},
   doors: { set: 'saloonExt', actors: [], lines: [
     ['narr', 'THE LAST OF THEM SCRAMBLE INSIDE. YOU KICK OPEN THE BATWING DOORS...'],
@@ -153,6 +194,7 @@ const EPITAPHS = {
     ['I TOLD YOU', 'I WAS SICK.'],
     ['HERE LIES JACK.', 'HE DONE HIS BEST.', "IT WEREN'T ENOUGH."],
     ['HE BLINKED.'],
+    ['HE WAS AIMIN', 'AT A HAT.'],
   ],
   duel: [['ALMOST FAST ENOUGH.', 'ALMOST.'], ['HE REACHED FOR IT.', 'MAD DOG REACHED', 'FASTER.']],
   early: [['HE DREW BEFORE', 'THE BELL. THE BELL', 'GOT THE LAST WORD.'], ['PATIENCE WAS NOT', 'HIS STRONG SUIT.']],
@@ -176,6 +218,8 @@ const HEART_PAL = { R: '#e0362c', W: '#ffd0c8' }, HEART_EMPTY = { R: '#3b2a24', 
 const BULLET = ['.C.', 'CCC', 'CCC', 'YYY', 'YWY', 'YYY', 'YYY', 'DDD'];
 const BULLET_PAL = { C: '#c8743a', Y: '#e2b33c', W: '#fff0a8', D: '#9a7420' };
 const BULLET_SPENT = { C: '#3b2a24', Y: '#3b2a24', W: '#3b2a24', D: '#3b2a24' };
+const HAT_ICON = ['...KKKK...', '..KKKKKK..', '..RRRRRR..', 'KKKKKKKKKK'];
+const HAT_PAL = { K: '#c8a46a', R: '#8a1f1a' };
 const GLYPH = {
   A: ['010','101','111','101','101'], B: ['110','101','110','101','110'], E: ['111','100','110','100','111'],
   I: ['111','010','010','010','111'], J: ['001','001','001','101','010'], K: ['101','101','110','101','101'],
@@ -198,6 +242,7 @@ let shots = 0, hits = 0, timer = 0, lastHurt = 'shot', epitaph = [], clock = 0;
 let flash = 0, muzzle = 0, shake = 0, mouse = { x: W / 2, y: H / 2 }, effects = [], confetti = [];
 let duelT = 0, drawAt = 0, boss = null, newBest = false;
 let cutName = 'intro', cutLine = 0, cutT = 0, musicT = 0, musicI = 0;
+let props = { set: '', list: [] }, hatsShot = 0, hatsTotal = 0, hatPulse = 0, targets = 0, flyT = 6, clearInfo = null;
 let best = +(localStorage.getItem('hns_best') || 0);
 const BTN = { deputy: { x: 168, y: 336, w: 288, h: 84 }, gunslinger: { x: 504, y: 336, w: 288, h: 84 } };
 const AMMO_BOX = { x: W - 162, y: H - 78, w: 150, h: 66 };
@@ -205,6 +250,7 @@ let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 214748364
 const SPECKS = Array.from({ length: 170 }, () => ({ x: Math.floor(rnd() * LW), y: 90 + Math.floor(rnd() * 90), c: rnd() < 0.5 ? '#a8763c' : '#d6a865' }));
 let tumble = { x: -20, t: 5 };
 const pick = a => a[Math.floor(Math.random() * a.length)];
+const SHOOTABLE = ['play', 'duelWait', 'duelDraw', 'duelWon'];
 
 // =====================================================================
 //  SOUND (Web Audio, no files)
@@ -238,6 +284,11 @@ const sfx = {
   clear:    () => [659, 784, 1046].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.15, 0.08), i * 110)),
   blip:     () => tone('square', 520, 520, 0.03, 0.03),
   win:      () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.25, 0.1), i * 150)),
+  glass:    () => { noise(0.25, 0.35, 9000); tone('triangle', 2600, 1900, 0.15, 0.07); tone('triangle', 3300, 2700, 0.1, 0.05); },
+  thud:     () => { noise(0.2, 0.5, 800); tone('triangle', 160, 80, 0.12, 0.2); },
+  ping:     () => { tone('square', 1400, 1300, 0.07, 0.05); tone('sine', 2800, 2700, 0.25, 0.05); },
+  coin:     () => [1320, 1760, 2093].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.08, 0.05), i * 60)),
+  hat:      () => [880, 1320].forEach((f, i) => setTimeout(() => tone('square', f, f, 0.07, 0.06), i * 60)),
 };
 const TUNE = [392, 523, 523, 587, 659, 659, 587, 523, 440, 523, 587, 523, 392, 0, 494, 0];
 function partyMusic(dt) {
@@ -268,15 +319,18 @@ function startLevel(i) {
   levelIdx = i; const L = LEVELS[i]; spots = L.spots; levelStartScore = score; lives = diff.lives; // refill each level
   events = L.events.map(([t, spot, ty, win], n) => ({ t, spot, type: ty === 'o' ? 'outlaw' : 'bystander', window: win,
     spec: ty === 'o' ? { ...OUTLAWS[(n + i) % OUTLAWS.length], pose: 'aim' } : { ...BYSTANDERS[(n + i) % BYSTANDERS.length], pose: 'hands' } }));
+  hatsTotal = events.filter(e => e.type === 'outlaw').length;
   resetLevel();
 }
-function resetLevel() { // dying sends you back to the START of the level
+function resetLevel() { // dying sends you back to the START of the level (bonus targets reset too)
   inDuel = false; time = 0; nextEvent = 0; actives = []; ammo = 6; score = levelStartScore; effects = [];
+  props = makeProps(LEVELS[levelIdx]); hatsShot = 0; targets = 0; flyT = 5 + Math.random() * 4;
   state = 'intro'; timer = 1.8;
 }
 function startDuel() { spots = DUEL_SPOTS; levelStartScore = score; lives = diff.lives; resetDuel(); }
 function resetDuel() {
   inDuel = true; actives = []; ammo = 6; score = levelStartScore; effects = [];
+  props = { set: 'street', list: [] }; hatsShot = 0; hatsTotal = 1; targets = 0;
   boss = { spot: 'street', type: 'outlaw', spec: { ...CHARS.buchanan, pose: 'holster' }, age: 0, window: 99, rise: 1, dead: false, deadTime: 0, boss: true };
   state = 'intro'; timer = 1.8;
 }
@@ -287,6 +341,92 @@ function advanceCut() {
   if (Math.floor(cutT * 45) < ln[1].length) { cutT = 99; return; }
   cutLine++; cutT = 0; sfx.blip();
   if (cutLine >= CUTS[cutName].lines.length) nextStep();
+}
+function enterClear() {
+  const perfect = hatsTotal > 0 && hatsShot === hatsTotal;
+  const hatBonus = hatsShot * 100 + (perfect ? 1000 : 0);
+  score += hatBonus;
+  clearInfo = { hatsShot, hatsTotal, hatBonus, perfect, targets };
+  state = 'clear'; timer = 3.4; sfx.clear(); if (perfect) setTimeout(sfx.coin, 400);
+}
+
+// =====================================================================
+//  BONUS TARGETS (props, flying hats, tumbleweeds, tossed bottles)
+// =====================================================================
+function mkProp(def, extra = {}) {
+  return { ...PROP_KINDS[def.k], ...def, alive: true, air: false, falling: false, vx: 0, vy: 0, juggles: 0, broken: false, ...extra };
+}
+function makeProps(L) { return { set: L.set, list: (L.props || []).map(d => mkProp(d)) }; }
+const freshProps = {};
+function propsForSet(name, freshOnly) {
+  if (!freshOnly && props.set === name) return props.list;
+  const L = LEVELS.find(l => l.set === name); if (!L) return [];
+  return freshProps[name] || (freshProps[name] = makeProps(L).list);
+}
+function burst(x, y, n, cols, spd) {
+  for (let i = 0; i < n; i++) effects.push({ phys: true, shard: true, x, y, vx: (Math.random() - 0.5) * spd * 2, vy: -Math.random() * spd - 20, life: 0.5 + Math.random() * 0.4, c: pick(cols) });
+}
+function popText(x, y, t) { effects.push({ x, y: Math.max(y, 14), life: 0.9, text: t }); }
+function breakProp(p) {
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  let pts = p.pts, label = '+' + pts;
+  switch (p.fx) {
+    case 'glass':   p.alive = false; burst(cx, cy, 10, [p.c || '#c8e0e4', '#e8f4f4', '#ffffff'], 60); if (p.k !== 'glass') burst(cx, cy, 5, ['#c98a3a', '#e2a84a'], 40); sfx.glass(); break;
+    case 'pottery': p.alive = false; burst(cx, cy, 12, ['#9a6a3a', '#7a4a28', '#ecd8a4'], 60); sfx.thud(); break;
+    case 'fire':    p.alive = false; burst(cx, cy, 14, ['#ffd23f', '#ff8a2a', '#ff3b30'], 70); burst(cx, cy, 4, ['#2a2a2a'], 40); sfx.glass(); break;
+    case 'coins':   p.alive = false; burst(cx, cy, 16, ['#e2b33c', '#fff0a8', '#c9a040'], 80); sfx.coin(); label = '$' + pts; break;
+    case 'ink':     p.alive = false; burst(cx, cy, 10, ['#1b2a4a', '#2a3a6a', '#f4efe0'], 50); sfx.glass(); break;
+    case 'spin':    p.broken = true; burst(cx, cy, 8, ['#e8f4f4', '#ffffff', '#8a8278'], 50); sfx.ping(); break;
+    case 'fall':    p.air = true; p.falling = true; p.vy = 0; sfx.ping(); label = 'LOOK OUT! +' + pts; break;
+    case 'juggle':
+      p.juggles++; pts = p.pts * Math.pow(2, p.juggles - 1);
+      p.air = true; p.vx = (Math.random() - 0.5) * 60; p.vy = -150; sfx.ping();
+      label = p.juggles > 1 ? 'JUGGLE x' + p.juggles + ' +' + pts : '+' + pts;
+      if (p.juggles >= 5) { p.spent = true; p.vx = (p.x < 160 ? -1 : 1) * 160; p.vy = -220; label = 'SKY HIGH! +' + pts; } // max 5 juggles
+      break;
+  }
+  targets++; hits++; score += pts; popText(cx, p.y - 4, label);
+}
+function hitProp(x, y, front) {
+  const L = props.list;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const p = L[i];
+    if (!p.alive || p.falling || p.spent || (p.fx === 'spin' && p.broken)) continue;
+    if ((p.air || p.layer === 'fg') !== front) continue;
+    const pad = p.air ? 3 : 1;
+    if (inBox(x, y, { x: p.x - pad, y: p.y - pad, w: p.w + pad * 2, h: p.h + pad * 2 })) { breakProp(p); return true; }
+  }
+  return false;
+}
+function updateProps(dt) {
+  for (const p of props.list) {
+    if (!p.alive || !p.air) continue;
+    p.vy += 320 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.falling && p.y >= p.floor) {
+      p.alive = false; burst(p.x + 15, p.floor + 8, 18, ['#b08a3a', '#f4efe0', '#ffd23f', '#e8f4f4'], 90);
+      sfx.glass(); sfx.thud(); shake = Math.max(shake, 0.25); popText(p.x + 15, p.floor - 6, 'CRASH!');
+    } else if (p.y > LH + 8 || p.x < -14 || p.x > LW + 14) p.alive = false;
+  }
+}
+function tossBottle() { // some varmint tosses a bottle across the scene
+  const left = Math.random() < 0.5;
+  props.list.push(mkProp({ k: 'bottle', x: left ? -4 : LW + 1, y: 70 + Math.random() * 40, c: pick(BOTTLE_C), layer: 'bg' },
+    { air: true, vx: (left ? 1 : -1) * (80 + Math.random() * 50), vy: -110 - Math.random() * 50, pts: 300 }));
+}
+function hatBox(e) { const sc = e.sc; return { x: e.x + sc - 1, y: e.y - 2, w: 16 * sc + 2, h: 9 * sc + 2 }; }
+function shootHat(e) {
+  e.live = false; e.shot = true; e.flashT = 0.12; e.vy = -140 * e.sc; e.vx = -e.vx * 0.6; e.life = Math.max(e.life, 1.2);
+  hatsShot++; hits++; hatPulse = 0.6; score += e.pts; sfx.hat();
+  popText(e.x + 8 * e.sc, e.y - 4, 'HAT TRICK! +' + e.pts);
+}
+function tumblePos() { return { x: Math.round(tumble.x), y: 150 - Math.round(Math.abs(Math.sin(tumble.x / 7)) * 6) }; }
+function hitTumble(x, y) {
+  if (inDuel || tumble.t > 0 || !SETS[LEVELS[levelIdx].set].outdoor) return false;
+  const t = tumblePos();
+  if (!inBox(x, y, { x: t.x - 2, y: t.y - 2, w: 10, h: 10 })) return false;
+  burst(t.x + 3, t.y + 3, 12, ['#8a6a3a', '#a8864a', '#5a4028'], 60); sfx.thud();
+  score += 150; targets++; hits++; popText(t.x + 3, t.y - 6, 'TUMBLEWEED +150');
+  tumble.x = -20; tumble.t = 8 + rnd() * 10; return true;
 }
 
 // =====================================================================
@@ -311,16 +451,22 @@ function shoot(sx, sy) {
   if (ammo <= 0) { sfx.empty(); return; }
   ammo--; shots++; muzzle = 0.07; shake = Math.max(shake, 0.08); sfx.gun();
   const x = sx / P, y = sy / P;
+  if (inDuel && state === 'duelWait') return hurt('early');
+  // 1) hats in the air
+  const hat = effects.find(e => e.hat && e.live && inBox(x, y, hatBox(e)));
+  if (hat) return shootHat(hat);
   if (inDuel) {
-    if (state === 'duelWait') return hurt('early');
     if (state === 'duelDraw' && inBox(x, y, spots.street)) {
       hits++; boss.dead = true; boss.deadTime = 0; knockOff(boss); sfx.hit();
       const bonus = Math.round(500 * Math.max(0, 1 - duelT / diff.draw));
-      score += 500 + bonus; effects.push({ x: 160, y: 80, life: 1, text: '+' + (500 + bonus) });
-      state = 'duelWon'; timer = 2; return;
+      score += 500 + bonus; popText(160, 80, '+' + (500 + bonus));
+      state = 'duelWon'; timer = 2.6; return;
     }
     return miss(x, y);
   }
+  // 2) airborne + foreground props
+  if (hitProp(x, y, true)) return;
+  // 3) people
   for (let i = actives.length - 1; i >= 0; i--) {
     const a = actives[i];
     if (a.dead || a.rise < 0.6 || !inBox(x, y, spots[a.spot]) || !inBox(x, y, figRect(a))) continue;
@@ -329,16 +475,19 @@ function shoot(sx, sy) {
       hits++; knockOff(a);
       const bonus = Math.round(100 * Math.max(0, 1 - a.age / a.window)), r = figRect(a);
       score += 100 + bonus;
-      effects.push({ x: r.x + r.w / 2, y: Math.max(r.y, 14), life: 0.8, text: '+' + (100 + bonus) });
+      popText(r.x + r.w / 2, r.y, '+' + (100 + bonus));
     } else hurt('bystander');
     return;
   }
+  // 4) background props, tumbleweed
+  if (hitProp(x, y, false) || hitTumble(x, y)) return;
   miss(x, y);
 }
 function knockOff(a) {
   const r = figRect(a), sc = a.boss ? 2 : 1;
   a.dir = Math.random() < 0.5 ? -1 : 1;
-  effects.push({ phys: true, hat: true, spec: { ...a.spec, hatOnly: true }, sc, x: r.x, y: r.y, vx: a.dir * (25 + Math.random() * 20) * sc, vy: -110 * sc, life: 1.3 });
+  effects.push({ phys: true, hat: true, live: true, pts: a.boss ? 500 : 250, spec: { ...a.spec, hatOnly: true }, sc, x: r.x, y: r.y,
+    vx: a.dir * (25 + Math.random() * 20) * sc, vy: -110 * sc, life: 1.6, flashT: 0 });
   effects.push({ phys: true, gun: true, sc, x: r.x + 16 * sc, y: r.y + 13 * sc, vx: -a.dir * 20, vy: -50, life: 0.9 });
 }
 function miss(x, y) {
@@ -350,9 +499,10 @@ function miss(x, y) {
 function update(dt) {
   clock += dt;
   if (paused) return;
-  flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt); shake = Math.max(0, shake - dt);
+  flash = Math.max(0, flash - dt * 2); muzzle = Math.max(0, muzzle - dt); shake = Math.max(0, shake - dt); hatPulse = Math.max(0, hatPulse - dt);
   effects.forEach(e => {
     e.life -= dt;
+    if (e.flashT) e.flashT -= dt;
     if (e.dust) { e.x += e.vx * dt; e.y += e.vy * dt; }
     if (e.phys) { e.vy += 320 * dt; e.x += e.vx * dt; e.y += e.vy * dt; }
   });
@@ -384,6 +534,9 @@ function update(dt) {
   if (state !== 'play') return;
 
   time += dt;
+  updateProps(dt);
+  flyT -= dt;
+  if (flyT <= 0) { tossBottle(); flyT = 7 + Math.random() * 5; }
   while (nextEvent < events.length && events[nextEvent].t <= time) {
     const e = events[nextEvent++];
     actives.push({ ...e, window: e.window * diff.mult, age: 0, rise: 0, dead: false, deadTime: 0 });
@@ -398,7 +551,8 @@ function update(dt) {
     }
   }
   actives = actives.filter(a => !a.gone && !(a.dead && a.deadTime > 0.9));
-  if (nextEvent >= events.length && actives.length === 0) { state = 'clear'; timer = 1.8; sfx.clear(); }
+  // level ends once everyone's done AND nothing shootable is still in the air
+  if (nextEvent >= events.length && actives.length === 0 && !effects.some(e => e.hat && e.live) && !props.list.some(p => p.alive && p.air)) enterClear();
 }
 
 // =====================================================================
@@ -557,7 +711,59 @@ function wheel(cx, cy, r) {
   for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; line(cx, cy, cx + Math.round(Math.cos(a) * (r - 2)), cy + Math.round(Math.sin(a) * (r - 2)), '#6e4224'); }
   disc(cx, cy, 2, '#3b2210');
 }
-function lamp(x, y) { R(x, y, 5, 6, '#2a2a2a'); R(x + 1, y + 1, 3, 4, '#ffd23f'); dither(x - 3, y - 2, 11, 10, 'rgba(255,220,120,.35)'); }
+
+// ---------------- PROP ART ----------------
+function drawProp(p) {
+  const x = Math.round(p.x), y = Math.round(p.y);
+  switch (p.k) {
+    case 'bottle':
+      R(x + 1, y, 1, 1, '#c8a46a'); R(x + 1, y + 1, 1, 1, p.c); R(x, y + 2, 3, 6, p.c);
+      R(x, y + 3, 1, 2, shade(p.c, 1.6)); R(x, y + 5, 3, 1, '#ecd8a4'); break;
+    case 'glass':
+      R(x, y, 3, 4, '#b8d8dc'); R(x, y + 2, 3, 2, '#c98a3a'); R(x, y, 1, 4, '#f4ffff'); break;
+    case 'jug':
+      R(x + 2, y, 2, 1, '#c8a46a'); R(x + 1, y + 1, 4, 1, '#7a4a28'); R(x, y + 2, 6, 6, '#9a6a3a');
+      R(x + 6, y + 3, 1, 3, '#5a3418'); R(x + 1, y + 4, 4, 2, '#ecd8a4'); R(x + 2, y + 4, 1, 1, INK); R(x + 3, y + 5, 1, 1, INK); R(x + 4, y + 4, 1, 1, INK); break;
+    case 'can':
+      R(x, y, 4, 5, '#a8a8b0'); R(x, y, 4, 1, '#d8d8e0'); R(x, y + 2, 4, 2, '#c0302b'); R(x + 3, y, 1, 5, '#78787f'); break;
+    case 'spittoon':
+      R(x + 1, y, 6, 1, '#e2c060'); R(x + 2, y + 1, 4, 2, '#b08a3a'); R(x, y + 3, 8, 3, '#c9a040'); R(x + 1, y + 6, 6, 1, '#8a6a2a'); R(x + 1, y + 3, 1, 2, '#f0d880'); break;
+    case 'lantern':
+      dither(x - 3, y - 1, 11, 10, 'rgba(255,220,120,.3)');
+      R(x + 2, y, 1, 1, '#2a2a2a'); R(x, y + 1, 5, 6, '#2a2a2a'); R(x + 1, y + 2, 3, 4, Math.floor(clock * 6) % 3 ? '#ffd23f' : '#ffb030'); break;
+    case 'moneybag':
+      R(x + 2, y, 4, 1, '#9a7a4a'); R(x + 3, y + 1, 2, 1, '#5a3418'); R(x + 1, y + 2, 6, 1, '#c8a46a'); R(x, y + 3, 8, 5, '#c8a46a');
+      R(x + 7, y + 3, 1, 5, '#9a7a4a'); R(x + 3, y + 4, 2, 3, '#3a6a3a'); R(x + 2, y + 5, 4, 1, '#3a6a3a'); break;
+    case 'inkwell':
+      R(x, y + 1, 4, 3, '#1b2a4a'); R(x + 1, y, 2, 1, '#2a2a3a'); R(x + 3, y - 5, 1, 5, '#f4efe0'); R(x + 4, y - 6, 1, 2, '#f4efe0'); break;
+    case 'clock': {
+      const cx = x + 12, cy = y + 12;
+      disc(cx, cy, 12, '#5a3418'); disc(cx, cy, 10, p.broken ? '#d8d0c0' : '#f4efe0');
+      for (const [dx, dy] of [[0, -8], [8, 0], [0, 8], [-8, 0]]) R(cx + dx, cy + dy, 1, 1, INK);
+      if (p.broken) {
+        const a = clock * 14; line(cx, cy, cx + Math.round(Math.cos(a) * 7), cy + Math.round(Math.sin(a) * 7), INK);
+        line(cx - 7, cy - 4, cx - 1, cy + 2, '#8a8278'); line(cx + 2, cy - 8, cx + 6, cy + 3, '#8a8278');
+      } else { R(cx, cy - 7, 1, 8, INK); line(cx, cy, cx - 2, cy - 5, INK); }
+      break;
+    }
+    case 'vane': {
+      const sw = p.broken ? Math.round(Math.cos(clock * 14) * 4) : 4, dir = sw < 0 ? -1 : 1;
+      R(x + 4, y + 5, 1, 7, '#2a2a2a'); R(x + 4 - Math.abs(sw), y + 6, Math.abs(sw) * 2 + 1, 1, '#2a2a2a');
+      R(x + 2, y + 1, 5, 3, '#2a2a2a'); R(x + 4 + dir * 2, y, 1, 2, '#c0302b'); R(x + 4 - dir * 3, y, 1, 2, '#2a2a2a'); break;
+    }
+    case 'chandelier':
+      if (!p.air) { R(x + 14, 0, 1, y + 8, '#3b2210'); dither(x - 6, y, 42, 14, 'rgba(255,220,120,.25)'); }
+      R(x, y + 8, 30, 2, '#b08a3a');
+      for (let i = 0; i < 5; i++) { R(x + 2 + i * 6, y + 5, 2, 3, '#f4efe0'); R(x + 2 + i * 6, y + 3, 2, 2, '#ffd23f'); }
+      break;
+  }
+}
+function drawProps(list, layer) {
+  for (const p of list) {
+    if (!p.alive) continue;
+    if (layer === 'air' ? p.air : (!p.air && p.layer === layer)) drawProp(p);
+  }
+}
 
 // =====================================================================
 //  SETS (bg = behind actors, fg = cover drawn in front)
@@ -591,7 +797,7 @@ function townBg() {
   R(292, 84, 18, 42, '#3b2a20'); R(294, 86, 14, 38, '#4e3628');
   // boardwalk + street
   R(0, 126, 320, 6, '#6e4224'); R(0, 126, 320, 1, '#9a6236'); for (let x = 0; x < 320; x += 10) R(x, 127, 1, 5, '#5a3418');
-  R(80, 96, 2, 30, '#3b2210'); lamp(78, 90);
+  R(80, 96, 2, 30, '#3b2210'); R(78, 90, 5, 6, '#2a2a2a'); R(79, 91, 3, 4, '#ffd23f');
   R(0, 150, 320, 1, '#a8763c'); R(0, 166, 320, 1, '#a8763c');
 }
 function saloonExtBg() {
@@ -608,7 +814,6 @@ function saloonExtBg() {
   }
   R(147, 92, 26, 44, '#2a1810'); dither(147, 116, 26, 20, '#7a4a28');
   R(48, 136, 224, 5, '#5a3418'); R(48, 136, 224, 1, '#9a6236');
-  lamp(178, 96);
   R(190, 122, 26, 2, '#4e2f17'); R(191, 122, 2, 16, '#4e2f17'); R(213, 122, 2, 16, '#4e2f17');
   R(114, 98, 14, 18, '#ecd8a4'); R(117, 101, 8, 6, '#c98a5a'); R(116, 100, 10, 2, '#1b1410'); R(116, 110, 10, 1, '#5a3418'); R(116, 113, 8, 1, '#5a3418');
 }
@@ -632,23 +837,17 @@ function saloonIntBg() {
   R(104, 58, 112, 46, '#3b2210'); R(128, 60, 64, 22, '#7fa0a8'); R(126, 58, 68, 2, '#b08a3a'); R(126, 82, 68, 2, '#b08a3a');
   for (let i = 0; i < 10; i++) R(140 + i, 62 + i, 2, 1, '#c8e0e4');
   R(104, 84, 112, 2, '#5a3418'); R(104, 96, 112, 2, '#5a3418');
-  const BOT = ['#3a7a3a', '#7a4a1a', '#c8d8d0', '#8a2a2a'];
-  for (let x = 106, k = 0; x < 214; x += 5, k++) { if (x > 124 && x < 194) continue; R(x, 78, 3, 6, BOT[k % 4]); R(x + 1, 76, 1, 2, BOT[k % 4]); }
-  for (let x = 106, k = 1; x < 214; x += 5, k++) { R(x, 90, 3, 6, BOT[k % 4]); R(x + 1, 88, 1, 2, BOT[k % 4]); }
   R(14, 62, 40, 28, '#b08a3a'); R(16, 64, 36, 24, '#6fa8dc'); R(16, 78, 36, 10, '#c4914f');
   for (let i = 0; i < 10; i++) R(26 - i, 68 + i, i * 2 + 1, 1, '#8a6a5a');
   R(240, 64, 22, 28, '#ecd8a4'); R(246, 70, 10, 9, '#c98a5a'); R(244, 68, 14, 3, '#1b1410'); R(247, 76, 8, 2, '#1b1410');
   R(244, 82, 14, 1, '#5a3418'); R(244, 85, 14, 1, '#5a3418'); R(244, 88, 10, 1, '#5a3418');
-  R(160, 0, 1, 8, '#3b2210'); R(146, 8, 30, 2, '#b08a3a');
-  for (let i = 0; i < 5; i++) { R(148 + i * 6, 5, 2, 3, '#f4efe0'); R(148 + i * 6, 3, 2, 2, '#ffd23f'); }
-  dither(140, 0, 42, 14, 'rgba(255,220,120,.25)');
 }
 function saloonIntFg(party) {
   for (const x of [40, 254]) { R(x - 2, 4, 30, 2, '#4a2a14'); R(x - 2, 6, 2, 40, '#4a2a14'); R(x + 26, 6, 2, 40, '#4a2a14'); }
   R(0, 34, 320, 2, '#7a4a28'); R(0, 34, 320, 1, '#a8703c'); for (let x = 2; x < 320; x += 5) R(x, 36, 2, 10, '#6e4224');
   R(94, 106, 132, 4, '#2a1810'); R(94, 106, 132, 1, '#7a4a28'); R(96, 110, 128, 26, '#7a4a28');
   for (let i = 0; i < 4; i++) { R(100 + i * 31, 113, 25, 19, '#8a5530'); R(100 + i * 31, 113, 25, 1, '#a8703c'); }
-  R(96, 132, 128, 2, '#c9a040'); R(230, 130, 6, 6, '#c9a040'); R(231, 129, 4, 1, '#e2c060');
+  R(96, 132, 128, 2, '#c9a040');
   R(12, 104, 52, 34, '#2a1a14'); R(10, 102, 56, 3, '#3b2a20'); R(16, 108, 44, 8, '#3b2a20'); R(16, 118, 44, 4, '#f4efe0');
   for (let i = 0; i < 14; i++) if (i % 7 !== 2 && i % 7 !== 6) R(17 + i * 3, 118, 2, 2, INK);
   R(14, 122, 4, 16, '#2a1a14'); R(58, 122, 4, 16, '#2a1a14'); R(32, 98, 12, 4, '#f4efe0'); R(20, 96, 2, 6, '#c9a040'); R(20, 94, 2, 2, '#ffd23f');
@@ -699,14 +898,10 @@ function bankBg() {
   R(0, 0, 320, 6, '#5a3418'); R(0, 6, 320, 1, '#9a6236');
   R(0, 100, 320, 38, '#5a3418'); for (let x = 0; x < 320; x += 40) { R(x + 4, 104, 32, 30, '#6e4224'); R(x + 4, 104, 32, 1, '#8a5530'); }
   for (let y = 138, k = 0; y < 180; y += 7, k++) for (let x = (k % 2) * 14 - 14; x < 320; x += 28) { R(x, y, 14, 7, '#d8d0c0'); R(x + 14, y, 14, 7, '#a89f90'); }
-  disc(160, 22, 12, '#5a3418'); disc(160, 22, 10, '#f4efe0');
-  for (const [dx, dy] of [[0, -8], [8, 0], [0, 8], [-8, 0]]) R(160 + dx, 22 + dy, 1, 1, INK);
-  R(160, 15, 1, 8, INK); line(160, 22, 157, 16, INK);
   R(136, 37, 48, 14, INK); signText('BANK', 160, 39, '#e2b33c', 2);
   for (const x of [33, 105, 177]) { R(x, 60, 30, 44, '#24382c'); for (let i = 0; i < 4; i++) R(x + 3 + i * 7, 66, 5, 5, '#8a7a3a'); }
   R(226, 40, 94, 98, '#3a4a44'); disc(272, 90, 28, '#6a6f78'); disc(272, 90, 21, '#15151a');
   for (let i = 0; i < 4; i++) R(262 + (i % 2) * 6, 104 - Math.floor(i / 2) * 4, 8, 3, '#e2b33c');
-  R(90, 40, 4, 6, '#e2b33c'); R(226, 40, 4, 6, '#e2b33c');
 }
 function bankFg() {
   R(20, 52, 200, 8, '#5a3418'); R(20, 58, 200, 1, '#c9a040');
@@ -751,7 +946,7 @@ const SETS = {
 // =====================================================================
 function drawTumble() {
   if (tumble.t > 0) return;
-  const x = Math.round(tumble.x), y = 150 - Math.round(Math.abs(Math.sin(tumble.x / 7)) * 6), f = Math.floor(tumble.x / 4) % 2, c = '#8a6a3a';
+  const { x, y } = tumblePos(), f = Math.floor(tumble.x / 4) % 2, c = '#8a6a3a';
   R(x + 1, y, 4, 1, c); R(x, y + 1, 1, 4, c); R(x + 5, y + 1, 1, 4, c); R(x + 1, y + 5, 4, 1, c);
   if (f) R(x + 2, y + 2, 2, 2, c); else { R(x + 1, y + 2, 1, 1, c); R(x + 4, y + 3, 1, 1, c); }
 }
@@ -787,24 +982,32 @@ function drawActors(c, dance) {
     blit(getSprite({ ...CHARS[ac.who], pose: ac.pose }), Math.round(ac.x - 20), y, 2);
   });
 }
+function drawStage(setName, list, after) { const set = SETS[setName]; set.bg(); drawProps(list, 'bg'); if (after) after(); set.fg(); drawProps(list, 'fg'); return set; }
 function drawWorld() {
   g.imageSmoothingEnabled = false;
   let set;
   if (state === 'cut') {
-    const c = CUTS[cutName]; set = SETS[c.set];
-    set.bg(); set.fg(); drawActors(c, !!c.party); if (c.after) c.after();
+    const c = CUTS[cutName];
+    const list = c.set === 'party' ? propsForSet('saloonInt', true) : propsForSet(c.set, false);
+    set = drawStage(c.set, list); drawActors(c, !!c.party); if (c.after) c.after();
   } else if (state === 'title') { set = SETS.town; set.bg(); }
-  else if (state === 'end') { set = SETS.party; set.bg(); set.fg(); drawActors(CUTS.party, true); }
+  else if (state === 'end') { set = drawStage('party', propsForSet('saloonInt', true)); drawActors(CUTS.party, true); }
   else {
-    set = inDuel ? SETS.street : SETS[LEVELS[levelIdx].set];
-    set.bg(); if (!inDuel) actives.forEach(drawFigure); set.fg();
+    const name = inDuel ? 'street' : LEVELS[levelIdx].set;
+    set = drawStage(name, props.list, () => { if (!inDuel) actives.forEach(drawFigure); });
     if (inDuel && boss) drawFigure(boss);
   }
   if (set.outdoor) drawTumble();
+  if (state !== 'cut' && state !== 'end' && state !== 'title') drawProps(props.list, 'air');
   for (const c of confetti) R(Math.round(c.x), Math.round(c.y), 2, 1, c.c);
   for (const e of effects) {
     if (e.text) continue;
-    if (e.hat) { blit(getSprite(e.spec), Math.round(e.x), Math.round(e.y), e.sc); continue; }
+    if (e.shard) { R(Math.round(e.x), Math.round(e.y), 1, 1, e.c); continue; }
+    if (e.hat) {
+      blit(getSprite(e.spec, e.flashT > 0), Math.round(e.x), Math.round(e.y), e.sc);
+      if (e.shot) R(Math.round(e.x + 8 * e.sc), Math.round(e.y + 2 * e.sc), e.sc, e.sc, '#f4efe0');
+      continue;
+    }
     if (e.gun) { R(Math.round(e.x), Math.round(e.y), 3 * e.sc, e.sc, '#b8b8c0'); continue; }
     if (e.dust) R(Math.round(e.x), Math.round(e.y), 1, 1, '#e8cc98');
     else R(Math.round(e.x) - 1, Math.round(e.y) - 1, 2, 2, INK);
@@ -846,6 +1049,11 @@ function drawHUD() {
   panel(12, H - 78, 312, 66);
   text(inDuel ? 'SHOWDOWN' : LEVELS[levelIdx].name, 33, H - 60, 16, '#ffffff');
   text(inDuel ? 'HIGH NOON' : 'LEVEL ' + (levelIdx + 1) + ' OF ' + LEVELS.length, 33, H - 36, 16, '#f3d18b');
+  if (!inDuel) { // hat tracker
+    panel(336, H - 78, 200, 66, hatPulse > 0 ? '#9a6236' : '#5a3418');
+    spriteUI(HAT_ICON, HAT_PAL, 356, H - 52, 3);
+    text(hatsShot + '/' + hatsTotal, 400, H - 57, 24, hatPulse > 0 ? '#ffd23f' : '#ffffff');
+  }
   const a = AMMO_BOX; panel(a.x, a.y, a.w, a.h);
   for (let i = 0; i < 6; i++) spriteUI(BULLET, i < ammo ? BULLET_PAL : BULLET_SPENT, a.x + 18 + i * 21, a.y + 21, 3);
   if (ammo === 0) { if (Math.floor(clock * 3) % 2) text('RELOAD! [R]', W - 12, a.y - 30, 16, '#ff3b30', 'right'); }
@@ -883,11 +1091,10 @@ function stats(y) {
 // ---------------- TALKING PORTRAITS (24x24 grid, drawn at 6x) ----------------
 function portrait(who, X, Y, talking) {
   const c = CHARS[who], S = 6, px = (x, y, w, h, col) => rect(X + x * S, Y + y * S, w * S, h * S, col);
-  const shade = col => { const n = parseInt(col.slice(1), 16), f = v => Math.max(0, Math.round(v * 0.72)); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(v => f(v).toString(16).padStart(2, '0')).join(''); };
-  const sk = c.skin, skD = shade(sk), hairC = c.hair, bc = c.beardC || hairC;
+  const dk = col => shade(col, 0.72);
+  const sk = c.skin, skD = dk(sk), hairC = c.hair, bc = c.beardC || hairC;
   px(0, 0, 24, 24, who === 'buchanan' ? '#4a1410' : '#2e4a5a');
   for (let y = 0; y < 24; y += 4) px(0, y, 24, 1, 'rgba(255,255,255,.05)');
-  // shoulders + clothes
   px(2, 19, 20, 5, c.coat || c.shirt);
   if (c.vest) { px(3, 19, 5, 5, c.vest); px(16, 19, 5, 5, c.vest); }
   if (c.coat) { px(9, 19, 6, 5, c.shirt); }
@@ -895,11 +1102,9 @@ function portrait(who, X, Y, talking) {
   if (who === 'buchanan') { px(7, 17, 10, 2, '#8a1a14'); px(11, 19, 2, 2, '#8a1a14'); }
   if (who === 'banker' || who === 'pete') { px(10, 18, 4, 2, who === 'pete' ? '#c0302b' : '#1b1b1b'); px(11, 18, 2, 2, '#000'); }
   if (c.badge) { px(15, 20, 3, 3, '#e2b33c'); px(16, 19, 1, 1, '#e2b33c'); px(16, 21, 1, 1, '#fff0a8'); }
-  // head
   px(5, 10, 1, 3, sk); px(18, 10, 1, 3, sk);
   px(6, 6, 12, 10, sk); px(7, 16, 10, 1, sk); px(17, 7, 1, 9, skD); px(8, 16, 8, 1, skD);
   px(6, 6, 1, 5, hairC); px(17, 6, 1, 5, hairC);
-  // eyes (blink every few seconds; Dewey's are droopy)
   const blink = (clock % 3.4) < 0.14;
   px(8, 9, 3, 1, hairC); px(13, 9, 3, 1, hairC);
   if (blink) { px(8, 11, 2, 1, INK); px(14, 11, 2, 1, INK); }
@@ -909,25 +1114,20 @@ function portrait(who, X, Y, talking) {
   }
   if (c.monocle) { px(13, 9, 4, 1, '#e2b33c'); px(13, 12, 4, 1, '#e2b33c'); px(13, 10, 1, 2, '#e2b33c'); px(16, 10, 1, 2, '#e2b33c'); px(16, 13, 1, 5, '#e2b33c'); }
   if (c.scar) { px(7, 11, 1, 4, '#9a3a2a'); px(6, 12, 1, 1, '#9a3a2a'); px(8, 13, 1, 1, '#9a3a2a'); }
-  // nose (red for the drinkers)
   px(11, 11, 2, 3, c.nose || (who === 'dewey' ? '#d0453a' : skD));
-  // facial hair
   if (c.face === 'beard') { px(6, 13, 12, 4, bc); px(7, 17, 10, 1, bc); px(8, 18, 8, 1, bc); }
-  if (c.face === 'stubble') for (const [x, y] of [[7, 14], [9, 16], [8, 15], [16, 14], [15, 15], [14, 16], [11, 17], [13, 16]]) px(x, y, 1, 1, shade(skD));
-  // mouth flaps while the line is typing
+  if (c.face === 'stubble') for (const [x, y] of [[7, 14], [9, 16], [8, 15], [16, 14], [15, 15], [14, 16], [11, 17], [13, 16]]) px(x, y, 1, 1, dk(skD));
   const open = talking && Math.floor(clock * 9) % 2;
   if (open) { px(10, 14, 4, 2, '#3a0f0a'); px(11, 15, 2, 1, '#c0302b'); } else px(10, 15, 4, 1, '#5a2a1a');
   if (c.face === 'mustache') { px(9, 13, 6, 1, bc); px(8, 14, 1, 1, bc); px(15, 14, 1, 1, bc); if (who === 'sheriff') { px(8, 13, 8, 2, bc); px(7, 14, 1, 2, bc); px(16, 14, 1, 2, bc); } }
-  // hats
   const hc = c.hatC || hairC;
   if (c.hat === 'cowboy') {
     px(1, 5, 22, 1, hc); px(2, 4, 20, 1, hc); px(7, 0, 10, 4, hc); px(11, 0, 2, 1, who === 'buchanan' ? '#4a1410' : '#2e4a5a');
     px(7, 3, 10, 1, who === 'sheriff' ? '#5a3418' : INK); px(8, 1, 1, 2, 'rgba(255,255,255,.25)');
-    if (who === 'dewey') { px(16, 0, 1, 2, '#2e4a5a'); px(4, 4, 2, 1, shade(hc)); }
+    if (who === 'dewey') { px(16, 0, 1, 2, '#2e4a5a'); px(4, 4, 2, 1, dk(hc)); }
   } else if (c.hat === 'bowler') {
     px(4, 5, 16, 1, hc); px(7, 2, 10, 3, hc); px(8, 1, 8, 1, hc); px(7, 4, 10, 1, '#5a2a2a'); px(9, 2, 1, 2, 'rgba(255,255,255,.2)');
   }
-  // frame
   rect(X - 6, Y - 6, 24 * S + 12, 6, '#c98a4b'); rect(X - 6, Y + 24 * S, 24 * S + 12, 6, '#c98a4b');
   rect(X - 6, Y, 6, 24 * S, '#c98a4b'); rect(X + 24 * S, Y, 6, 24 * S, '#c98a4b');
 }
@@ -958,9 +1158,10 @@ function draw() {
     text('HIGH NOON', W / 2, 36, 48, '#ffd23f', 'center');
     text('THE LEGEND OF MAD DOG BUCHANAN', W / 2, 104, 16, '#f4efe0', 'center');
     panel(W / 2 - 330, 140, 660, 132);
-    text('SHOOT OUTLAWS BEFORE THEY FIRE', W / 2, 164, 16, '#ffffff', 'center');
-    text("DON'T SHOOT HANDS-UP FOLKS", W / 2, 196, 16, '#7fb2ff', 'center');
-    text('R=RELOAD  P=PAUSE  ESC=SKIP SCENE', W / 2, 228, 16, '#f3d18b', 'center');
+    text('SHOOT OUTLAWS BEFORE THEY FIRE', W / 2, 160, 16, '#ffffff', 'center');
+    text("DON'T SHOOT HANDS-UP FOLKS", W / 2, 188, 16, '#7fb2ff', 'center');
+    text('BONUS: SHOOT HATS & BOTTLES!', W / 2, 216, 16, '#ffd23f', 'center');
+    text('R=RELOAD  P=PAUSE  ESC=SKIP', W / 2, 244, 16, '#f3d18b', 'center');
     if (blink) text('CHOOSE YOUR BADGE', W / 2, 296, 16, '#ffffff', 'center');
     button(BTN.deputy, 'DEPUTY', '5 LIVES - EASY'); button(BTN.gunslinger, 'GUNSLINGER', '3 LIVES - HARD');
     if (best) text('BEST ' + best, W / 2, 450, 16, '#ffd23f', 'center');
@@ -971,7 +1172,15 @@ function draw() {
     if (inDuel) { text('SHOWDOWN', W / 2, 194, 32, '#ff3b30', 'center'); text('WAIT FOR THE BELL...', W / 2, 246, 16, '#ffffff', 'center'); text('THEN DRAW!', W / 2, 280, 16, '#ffd23f', 'center'); }
     else { text('LEVEL ' + (levelIdx + 1), W / 2, 194, 32, '#ffd23f', 'center'); text(LEVELS[levelIdx].name, W / 2, 246, 16, '#ffffff', 'center'); text('GET READY...', W / 2, 280, 16, '#f3d18b', 'center'); }
   }
-  if (state === 'clear') { dim(0.3); panel(W / 2 - 270, 190, 540, 120); text('LEVEL CLEAR!', W / 2, 214, 32, '#ffd23f', 'center'); text('SCORE ' + score, W / 2, 266, 16, '#ffffff', 'center'); }
+  if (state === 'clear' && clearInfo) {
+    const ci = clearInfo;
+    dim(0.35); panel(W / 2 - 310, 130, 620, 250);
+    text('LEVEL CLEAR!', W / 2, 154, 32, '#ffd23f', 'center');
+    text('HATS SHOT ' + ci.hatsShot + '/' + ci.hatsTotal + '   +' + ci.hatBonus, W / 2, 214, 16, '#ffffff', 'center');
+    if (ci.perfect && blink) text('PERFECT HAT TRICK! +1000', W / 2, 246, 16, '#ffd23f', 'center');
+    text('TARGETS SHOT ' + ci.targets, W / 2, 278, 16, '#f3d18b', 'center');
+    text('SCORE ' + score, W / 2, 322, 24, '#ffffff', 'center');
+  }
   if (state === 'duelWait') text('STEADY...', W / 2, 110, 24, '#f4efe0', 'center');
   if (state === 'duelDraw') text('DRAW!', W / 2, 96, 64, Math.floor(clock * 10) % 2 ? '#ff3b30' : '#ffd23f', 'center');
   if (state === 'hurt' || state === 'over') {
@@ -1009,7 +1218,7 @@ cv.addEventListener('pointerdown', e => {
   if (state === 'end') { toTitle(); return; }
   if (state === 'over') { lives = diff.lives; score = 0; levelStartScore = 0; retry(); return; }
   if (state === 'hurt') { if (timer < 3.7) retry(); return; }
-  if (!['play', 'duelWait', 'duelDraw'].includes(state)) return;
+  if (!SHOOTABLE.includes(state)) return;
   if (e.button === 2 || inBox(mouse.x, mouse.y, AMMO_BOX)) { reload(); return; }
   shoot(mouse.x, mouse.y);
 });
@@ -1019,7 +1228,7 @@ window.addEventListener('keydown', e => {
   if (paused) return;
   if ((k === ' ' || k === 'enter') && state === 'cut') { e.preventDefault(); advanceCut(); }
   if (k === 'escape') { if (state === 'cut') nextStep(); else if (state === 'over') toTitle(); }
-  if (k === 'r' && ['play', 'duelWait', 'duelDraw'].includes(state)) reload();
+  if (k === 'r' && SHOOTABLE.includes(state)) reload();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && canPause()) paused = true; });
 
